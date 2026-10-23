@@ -10,12 +10,12 @@ const LESSONS = [
     prompt: "You keep 10 million user sessions in a hash map keyed by session ID. What's the average cost of looking one up?",
     options: ["O(1)", "O(log n)", "O(n)", "O(n log n)"],
     answer: 0,
-    explain: "A good hash function spreads keys across buckets, so a lookup checks a tiny, constant number of entries no matter how big the map gets. The worst case is O(n) when everything collides, which is why languages randomize their hash seeds. This is the reason caches, dedupe sets and Redis feel instant."
+    explain: "A good hash function spreads keys across buckets, so a lookup checks a tiny, constant number of entries no matter how big the map gets. The worst case is O(n) when everything collides, which is why many languages randomize their hash seeds. This is the reason caches, dedupe sets and Redis feel instant."
   },
   {
     id: "a102", track: "algo", level: 1, topic: "Hashing", type: "code",
     title: "Two Sum",
-    prompt: "Given an array `nums` and a `target`, return the indices `[i, j]` (with i < j) of the two numbers that add up to target. Exactly one answer exists. Try to do it in one pass.",
+    prompt: "Given an array `nums` and a `target`, return the indices `[i, j]` (with i < j) of the two numbers that add up to target. Exactly one answer exists. Try to do it in one pass: one test has 200,000 numbers, so checking every pair will time out.",
     fn: "twoSum",
     starter: `function twoSum(nums, target) {
 
@@ -25,7 +25,8 @@ const LESSONS = [
       { args: [[2, 7, 11, 15], 9], expected: [0, 1] },
       { args: [[3, 2, 4], 6], expected: [1, 2] },
       { args: [[3, 3], 6], expected: [0, 1] },
-      { args: [[-1, -2, -3, -4, -5], -8], expected: [2, 4] }
+      { args: [[-1, -2, -3, -4, -5], -8], expected: [2, 4] },
+      { label: "200k numbers, pair at the end", argsCode: "[Array.from({ length: 199998 }, (_, i) => i).concat([1e9, 1e9 + 1]), 2e9 + 1]", expected: [199998, 199999] }
     ],
     solution: `function twoSum(nums, target) {
   const seen = new Map(); // value -> index
@@ -124,7 +125,7 @@ const LESSONS = [
   {
     id: "a201", track: "algo", level: 2, topic: "Binary search", type: "code",
     title: "Lower bound",
-    prompt: "Return the first index i where `nums[i] >= target` in a sorted array. If every element is smaller, return `nums.length`. Needs to be O(log n).",
+    prompt: "Return the first index i where `nums[i] >= target` in a sorted array. If every element is smaller, return `nums.length`. Needs to be O(log n): one test is an array of 500 million numbers that only lets you read about 100 of them.",
     fn: "lowerBound",
     starter: `function lowerBound(nums, target) {
 
@@ -135,7 +136,10 @@ const LESSONS = [
       { args: [[1, 3, 3, 5, 8], 4], expected: 3 },
       { args: [[1, 3, 3, 5, 8], 9], expected: 5 },
       { args: [[1, 3, 3, 5, 8], 0], expected: 0 },
-      { args: [[], 5], expected: 0 }
+      { args: [[], 5], expected: 0 },
+      { label: "500M evens, target in the middle", argsCode: "[(() => { let reads = 0; return new Proxy([], { get(t, p) { if (p === 'length') return 500000000; if (typeof p === 'string' && /^[0-9]+$/.test(p)) { if (++reads > 100) throw new Error('Read more than 100 elements. This needs O(log n) reads.'); const i = Number(p); return 2 * i; } return t[p]; } }); })(), 600000001]", expected: 300000001 },
+      { label: "500M evens, exact hit", argsCode: "[(() => { let reads = 0; return new Proxy([], { get(t, p) { if (p === 'length') return 500000000; if (typeof p === 'string' && /^[0-9]+$/.test(p)) { if (++reads > 100) throw new Error('Read more than 100 elements. This needs O(log n) reads.'); const i = Number(p); return 2 * i; } return t[p]; } }); })(), 600000000]", expected: 300000000 },
+      { label: "500M evens, target past the end", argsCode: "[(() => { let reads = 0; return new Proxy([], { get(t, p) { if (p === 'length') return 500000000; if (typeof p === 'string' && /^[0-9]+$/.test(p)) { if (++reads > 100) throw new Error('Read more than 100 elements. This needs O(log n) reads.'); const i = Number(p); return 2 * i; } return t[p]; } }); })(), 1e10]", expected: 500000000 }
     ],
     solution: `function lowerBound(nums, target) {
   let lo = 0, hi = nums.length;
@@ -277,7 +281,7 @@ const LESSONS = [
   {
     id: "a301", track: "algo", level: 3, topic: "Selection", type: "code",
     title: "Kth largest",
-    prompt: "Return the k-th largest element in `nums` (k = 1 means the max). Sorting works, but try for average O(n).",
+    prompt: "Return the k-th largest element in `nums` (k = 1 means the max, and duplicates count: in `[7, 7, 7]` the 2nd largest is 7). Sorting works, but try for average O(n).",
     fn: "findKthLargest",
     starter: `function findKthLargest(nums, k) {
 
@@ -287,7 +291,10 @@ const LESSONS = [
       { args: [[3, 2, 1, 5, 6, 4], 2], expected: 5 },
       { args: [[3, 2, 3, 1, 2, 4, 5, 5, 6], 4], expected: 4 },
       { args: [[1], 1], expected: 1 },
-      { args: [[7, 7, 7], 2], expected: 7 }
+      { args: [[7, 7, 7], 2], expected: 7 },
+      { args: [[10, 9, 1, 100, 2], 2], expected: 10 },
+      { args: [[-1, -10, 5, -2, -3], 4], expected: -3 },
+      { label: "100k shuffled numbers, k = 1000", argsCode: "[(() => { let s = 12345; const a = Array.from({ length: 100000 }, (_, i) => i); for (let i = a.length - 1; i > 0; i--) { s = (Math.imul(s, 1103515245) + 12345) >>> 0; const j = s % (i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; })(), 1000]", expected: 99000 }
     ],
     solution: `function findKthLargest(nums, k) {
   const a = nums.slice();
@@ -390,12 +397,12 @@ const LESSONS = [
     prompt: "Pushing onto a JavaScript array or Python list sometimes copies the whole thing into a bigger buffer. Why is push still called O(1)?",
     options: ["It isn't, it's O(n)", "Capacity grows geometrically, so total copy work over n pushes is about 2n, which is O(1) amortized", "The OS copies memory for free", "Arrays are linked lists under the hood"],
     answer: 1,
-    explain: "With doubling, copies happen at sizes 1, 2, 4, 8 and so on, which sums to under 2n. The expensive operations are rare enough to average out. Hash table resizing works the same way, and it's also why a single push can occasionally cause a latency spike."
+    explain: "With geometric growth, copies happen at sizes 1, 2, 4, 8 and so on (for doubling), which sums to under 2n. Real runtimes use smaller factors, and the same argument holds. The expensive operations are rare enough to average out. Hash table resizing works the same way, and it's also why a single push can occasionally cause a latency spike."
   },
   {
     id: "a307", track: "algo", level: 3, topic: "Design a structure", type: "code",
     title: "LRU cache",
-    prompt: "Simulate an LRU cache with the given `capacity`. `ops` is a list of `['put', key, value]` or `['get', key]`. Return an array with the result of every get (-1 if missing). When the cache is full, a put evicts the least recently used key. Both operations should be O(1).",
+    prompt: "Simulate an LRU cache with the given `capacity`. `ops` is a list of `['put', key, value]` or `['get', key]`. Return an array with the result of every get (-1 if missing). When the cache is full, a put evicts the least recently used key. Both operations should be O(1): one test has capacity 100,000 and 200,000 operations, so scanning a list on every operation will time out.",
     fn: "lruRun",
     starter: `function lruRun(capacity, ops) {
   const out = [];
@@ -408,7 +415,8 @@ const LESSONS = [
     tests: [
       { args: [2, [["put", 1, 1], ["put", 2, 2], ["get", 1], ["put", 3, 3], ["get", 2], ["put", 4, 4], ["get", 1], ["get", 3], ["get", 4]]], expected: [1, -1, -1, 3, 4] },
       { args: [1, [["put", 1, 1], ["put", 1, 5], ["get", 1], ["put", 2, 2], ["get", 1], ["get", 2]]], expected: [5, -1, 2] },
-      { args: [2, [["get", 9]]], expected: [-1] }
+      { args: [2, [["get", 9]]], expected: [-1] },
+      { label: "capacity 100k, 200k ops", argsCode: "[100000, Array.from({ length: 100010 }, (_, k) => ['put', k, 2 * k]).concat(Array.from({ length: 100010 }, (_, i) => ['get', 100009 - i]))]", expectedCode: "Array.from({ length: 100000 }, (_, i) => 2 * (100009 - i)).concat(Array(10).fill(-1))" }
     ],
     solution: `function lruRun(capacity, ops) {
   const cache = new Map();
@@ -546,7 +554,7 @@ const LESSONS = [
   }
   return out;
 }`,
-    explain: "Monotonic deque: every index is pushed and popped once, so O(n) total. Watch out for `Array.shift()` in JS, it's O(n) and can quietly blow up your complexity. Same structure as 'max latency over the last minute' in streaming metrics."
+    explain: "Monotonic deque: every index is pushed and popped once, so O(n) total. Watch out for `Array.shift()` in JS, it can be O(n) and can quietly blow up your complexity. Same structure as 'max latency over the last minute' in streaming metrics."
   },
   {
     id: "a406", track: "algo", level: 4, topic: "Two pointers", type: "code",
@@ -595,7 +603,7 @@ const LESSONS = [
     prompt: "A naive quicksort always picks the first element as its pivot. Which input makes it O(n²)?",
     options: ["Random data", "Already sorted data", "All unique values", "Small arrays"],
     answer: 1,
-    explain: "On sorted input the pivot is always the minimum, so each partition only peels off one element. Random pivots or median-of-three fix it. Production sorts (introsort, pdqsort, Timsort) defend against this, because adversarial inputs have caused real denial of service bugs."
+    explain: "On sorted input the pivot is always the minimum, so each partition only peels off one element. Random pivots or median-of-three fix it. Production quicksorts (introsort, pdqsort) defend against this, because adversarial inputs have caused real denial of service bugs."
   },
 
   // ============================ ALGORITHMS, L5 BRUTAL ============================
@@ -635,7 +643,7 @@ const LESSONS = [
   {
     id: "a502", track: "algo", level: 5, topic: "BFS", type: "code",
     title: "Word ladder",
-    prompt: "Turn `begin` into `end` by changing one letter at a time. Every intermediate word must be in `words`. Return the number of words in the shortest sequence (counting begin and end), or 0 if impossible.",
+    prompt: "Turn `begin` into `end` by changing one letter at a time. Every intermediate word must be in `words`, and `end` must also be in `words`. Return the number of words in the shortest sequence (counting begin and end), or 0 if impossible.",
     fn: "ladderLength",
     starter: `function ladderLength(begin, end, words) {
 
@@ -700,7 +708,7 @@ const LESSONS = [
     prompt: "Which of these are real reasons a hash map lookup could get slow in production? Select all that apply.",
     options: ["Many keys landing in the same bucket (a bad hash or a deliberate attack)", "The map happens to be resizing at that moment", "Keys are huge strings that are expensive to hash", "The map has more than 1,000 entries"],
     answers: [0, 1, 2],
-    explain: "Collisions, resize pauses and hashing cost are all real. Size alone doesn't make lookups slow. Hash flooding attacks against web frameworks around 2011 pushed languages to randomize hash seeds per process."
+    explain: "Collisions, resize pauses and hashing cost are all real. Size alone doesn't make lookups slow. Hash flooding attacks against web frameworks around 2011 pushed many languages to randomize hash seeds per process."
   },
 
   // ============================ SYSTEM DESIGN, L1 WARM-UP ============================
@@ -717,7 +725,7 @@ const LESSONS = [
     title: "Requests per second",
     prompt: "Your app gets 1 million requests per day, spread evenly. About how many requests per second is that?",
     unit: "req/s", answer: 11.6, min: 9, max: 13,
-    explain: "A day has 86,400 seconds, call it 10^5. So 1M per day is about 12 per second. Handy anchors: 1M/day ≈ 12/s, 100M/day ≈ 1,200/s. Real traffic peaks at 2 to 5 times the average, so design for the peak."
+    explain: "A day has 86,400 seconds. Rounded to 10^5, 1M per day is about 10 per second, and with the exact 86,400 it is about 12. Handy anchors: 1M/day ≈ 12/s, 100M/day ≈ 1,200/s. Real traffic peaks at 2 to 5 times the average, so design for the peak."
   },
   {
     id: "s103", track: "sd", level: 1, topic: "Load balancing", type: "mcq",
@@ -749,7 +757,7 @@ const LESSONS = [
     prompt: "Which of these takes the longest?",
     options: ["Reading 1 MB sequentially from memory", "A round trip inside one datacenter", "Reading 1 MB sequentially from an SSD", "A round trip from California to the Netherlands"],
     answer: 3,
-    explain: "Ballpark: 1 MB from memory is microseconds, a same-datacenter round trip is about 0.5 ms, 1 MB from SSD is around 1 ms, and a transatlantic round trip is roughly 150 ms. Distance dominates, which is why CDNs and multi-region setups exist."
+    explain: "Ballpark: 1 MB from memory is microseconds, a same-datacenter round trip is about 0.5 ms, 1 MB from SSD is around 1 ms, and a California to Netherlands round trip is roughly 150 ms. Distance dominates, which is why CDNs and multi-region setups exist."
   },
 
   // ============================ SYSTEM DESIGN, L2 SOLID ============================
@@ -934,7 +942,7 @@ const LESSONS = [
     prompt: "A Dynamo-style store keeps N = 3 replicas. Writes wait for W = 2 acks, reads query R = 2 replicas. What does that guarantee?",
     options: ["Nothing useful", "Every read overlaps at least one replica that has the latest acknowledged write, because R + W > N", "Writes can never fail", "Only eventual consistency"],
     answer: 1,
-    explain: "The overlap means a read always touches the newest acknowledged write, and version numbers pick the winner. W = 1, R = 1 is fast but can return stale data. Tuning R and W lets you trade latency for consistency per query, which Cassandra exposes as consistency levels."
+    explain: "With strict quorums the overlap means a read always touches the newest acknowledged write, and version numbers pick the winner. W = 1, R = 1 is fast but can return stale data. Tuning R and W lets you trade latency for consistency per query, which Cassandra exposes as consistency levels."
   },
   {
     id: "s407", track: "sd", level: 4, topic: "Observability", type: "mcq",
@@ -1167,7 +1175,7 @@ const LESSONS = [
   {
     id: "a309", track: "algo", level: 3, topic: "Heaps", type: "code",
     title: "Merge k sorted lists",
-    prompt: "`lists` holds k arrays, each sorted ascending. Return one sorted array with every element. Aim for O(N log k), where N is the total number of elements.",
+    prompt: "`lists` holds k arrays, each sorted ascending. Return one sorted array with every element. A heap gives O(N log k), where N is the total number of elements. Sorting everything is also accepted.",
     fn: "mergeKSorted",
     starter: `function mergeKSorted(lists) {
 
@@ -1178,7 +1186,8 @@ const LESSONS = [
       { args: [[]], expected: [] },
       { args: [[[], [1]]], expected: [1] },
       { args: [[[5], [1], [3]]], expected: [1, 3, 5] },
-      { args: [[[-2, 0, 9], [], [-5, 10]]], expected: [-5, -2, 0, 9, 10] }
+      { args: [[[-2, 0, 9], [], [-5, 10]]], expected: [-5, -2, 0, 9, 10] },
+      { args: [[[10, 20], [9, 30], [100]]], expected: [9, 10, 20, 30, 100] }
     ],
     solution: `function mergeKSorted(lists) {
   const heap = []; // [value, listIndex, itemIndex]
@@ -1245,12 +1254,12 @@ const LESSONS = [
   }
   return count;
 }`,
-    explain: "Union-Find tracks which set each node belongs to. Path compression (here the halving version, done in a loop) keeps trees flat, so operations are nearly O(1). An iterative BFS also works. A recursive DFS 200,000 levels deep blows the call stack."
+    explain: "Union-Find tracks which set each node belongs to. Path compression (here the halving version, done in a loop) keeps trees shallow, so operations are close to O(1) in practice. Halving alone gives amortized O(log n), and adding union by rank gets you to inverse Ackermann. An iterative BFS also works. A recursive DFS 200,000 levels deep blows the call stack."
   },
   {
     id: "a311", track: "algo", level: 3, topic: "Binary search", type: "code",
     title: "Search a rotated array",
-    prompt: "A sorted array of distinct numbers was rotated at some pivot, like `[4,5,6,7,0,1,2]`. Return the index of `target`, or -1. Do it in O(log n).",
+    prompt: "A sorted array of distinct numbers was rotated at some pivot, like `[4,5,6,7,0,1,2]`. Return the index of `target`, or -1. Do it in O(log n): one test is an array of 500 million numbers that only lets you read a few hundred of them.",
     fn: "searchRotated",
     starter: `function searchRotated(nums, target) {
 
@@ -1263,7 +1272,11 @@ const LESSONS = [
       { args: [[1], 1], expected: 0 },
       { args: [[5, 1, 3], 5], expected: 0 },
       { args: [[3, 1], 1], expected: 1 },
-      { args: [[6, 7, 1, 2, 3, 4, 5], 7], expected: 1 }
+      { args: [[6, 7, 1, 2, 3, 4, 5], 7], expected: 1 },
+      { label: "500M rotated, target in the left part", argsCode: "[(() => { let reads = 0; return new Proxy([], { get(t, p) { if (p === 'length') return 500000000; if (typeof p === 'string' && /^[0-9]+$/.test(p)) { if (++reads > 500) throw new Error('Read more than 500 elements. This needs O(log n) reads.'); const i = Number(p); return ((i + 123456789) % 500000000) * 2; } return t[p]; } }); })(), 14]", expected: 376543218 },
+      { label: "500M rotated, target in the right part", argsCode: "[(() => { let reads = 0; return new Proxy([], { get(t, p) { if (p === 'length') return 500000000; if (typeof p === 'string' && /^[0-9]+$/.test(p)) { if (++reads > 500) throw new Error('Read more than 500 elements. This needs O(log n) reads.'); const i = Number(p); return ((i + 123456789) % 500000000) * 2; } return t[p]; } }); })(), 999999998]", expected: 376543210 },
+      { label: "500M rotated, first element", argsCode: "[(() => { let reads = 0; return new Proxy([], { get(t, p) { if (p === 'length') return 500000000; if (typeof p === 'string' && /^[0-9]+$/.test(p)) { if (++reads > 500) throw new Error('Read more than 500 elements. This needs O(log n) reads.'); const i = Number(p); return ((i + 123456789) % 500000000) * 2; } return t[p]; } }); })(), 246913578]", expected: 0 },
+      { label: "500M rotated, missing", argsCode: "[(() => { let reads = 0; return new Proxy([], { get(t, p) { if (p === 'length') return 500000000; if (typeof p === 'string' && /^[0-9]+$/.test(p)) { if (++reads > 500) throw new Error('Read more than 500 elements. This needs O(log n) reads.'); const i = Number(p); return ((i + 123456789) % 500000000) * 2; } return t[p]; } }); })(), 1001]", expected: -1 }
     ],
     solution: `function searchRotated(nums, target) {
   let lo = 0, hi = nums.length - 1;
@@ -1379,7 +1392,7 @@ const LESSONS = [
   {
     id: "a412", track: "algo", level: 4, topic: "Strings", type: "code",
     title: "Longest palindromic substring",
-    prompt: "Return the length of the longest palindromic substring of `s`. One test has 3,000 characters, so checking every substring in O(n³) will time out.",
+    prompt: "Return the length of the longest palindromic substring of `s`. Two tests have 3,000 and 5,000 characters, so checking every substring in O(n³) will time out.",
     fn: "longestPalLen",
     starter: `function longestPalLen(s) {
 
@@ -1391,7 +1404,8 @@ const LESSONS = [
       { args: ["a"], expected: 1 },
       { args: [""], expected: 0 },
       { args: ["forgeeksskeegfor"], expected: 10 },
-      { label: "'ab' repeated 1,500 times", argsCode: "['ab'.repeat(1500)]", expected: 2999 }
+      { label: "'ab' repeated 1,500 times", argsCode: "['ab'.repeat(1500)]", expected: 2999 },
+      { label: "'ab' repeated 2,500 times", argsCode: "['ab'.repeat(2500)]", expected: 4999 }
     ],
     solution: `function longestPalLen(s) {
   let best = 0;
@@ -1409,7 +1423,7 @@ const LESSONS = [
   {
     id: "a507", track: "algo", level: 5, topic: "Binary search", type: "code",
     title: "Median of two sorted arrays",
-    prompt: "Return the median of two sorted arrays `a` and `b` combined. Target O(log(min(m, n))). The big test has 500,000 numbers in each.",
+    prompt: "Return the median of two sorted arrays `a` and `b` combined. Target O(log(min(m, n))). The big tests have hundreds of millions of numbers and only let you read about a thousand of them.",
     fn: "findMedianSortedArrays",
     starter: `function findMedianSortedArrays(a, b) {
 
@@ -1422,6 +1436,8 @@ const LESSONS = [
       { args: [[0, 0], [0, 0]], expected: 0 },
       { args: [[2], []], expected: 2 },
       { args: [[1, 5, 9], [2, 3, 4, 10]], expected: 4 },
+      { label: "500M evens + 500M odds", argsCode: "(() => { let reads = 0; const mk = (len, f) => new Proxy([], { get(t, p) { if (p === 'length') return len; if (typeof p === 'string' && /^[0-9]+$/.test(p)) { if (++reads > 1000) throw new Error('Read more than 1000 elements. This needs O(log n) reads.'); return f(Number(p)); } return t[p]; } }); return [mk(500000000, i => 2 * i), mk(500000000, i => 2 * i + 1)]; })()", expected: 499999999.5 },
+      { label: "500M small + 200M large", argsCode: "(() => { let reads = 0; const mk = (len, f) => new Proxy([], { get(t, p) { if (p === 'length') return len; if (typeof p === 'string' && /^[0-9]+$/.test(p)) { if (++reads > 1000) throw new Error('Read more than 1000 elements. This needs O(log n) reads.'); return f(Number(p)); } return t[p]; } }); return [mk(500000000, i => 2 * i), mk(200000000, i => 2e9 + i)]; })()", expected: 699999999 },
       { label: "500k evens + 500k odds", argsCode: "[Array.from({ length: 500000 }, (_, i) => 2 * i), Array.from({ length: 500000 }, (_, i) => 2 * i + 1)]", expected: 499999.5 }
     ],
     solution: `function findMedianSortedArrays(a, b) {
@@ -1440,7 +1456,7 @@ const LESSONS = [
     else lo = i + 1;
   }
 }`,
-    explain: "You're not searching for a value, you're searching for a partition. Picking i elements from a forces half - i from b, and the comparisons tell you which way to move. Infinity sentinels remove a pile of edge cases. Merging until the middle is O(m + n) and passes here, but interviewers asking this one want the log version."
+    explain: "You're not searching for a value, you're searching for a partition. Picking i elements from a forces half - i from b, and the comparisons tell you which way to move. Infinity sentinels remove a pile of edge cases. Merging until the middle is O(m + n), which is fine for small inputs but reads far too many elements for the huge tests, and interviewers asking this one want the log version."
   },
   {
     id: "a508", track: "algo", level: 5, topic: "Prefix sums", type: "mcq",
@@ -1488,7 +1504,7 @@ const LESSONS = [
     id: "s210", track: "sd", level: 2, topic: "Caching", type: "multi",
     title: "Writes and the cache",
     prompt: "A user updates their profile. Which approaches keep readers from seeing the old cached value for long?",
-    options: ["Delete the cache key right after the database write commits", "Write through: update the cache in the same code path as the database", "Update the cache first, then the database", "Short TTLs as a safety net"],
+    options: ["Delete the cache key right after the database write commits", "Write through: write the database, then update the cache", "Update the cache first, then the database", "Short TTLs as a safety net"],
     answers: [0, 1, 3],
     explain: "Delete on write (then lazily reload) is the common default. Write through keeps the cache warm. A TTL catches anything you missed. Updating the cache before the database is risky: if the database write fails, the cache now holds a value that never existed."
   },
@@ -1604,10 +1620,10 @@ const LESSONS = [
   {
     id: "s509", track: "sd", level: 5, topic: "Rate limiting", type: "multi",
     title: "Rate limit at 1M QPS",
-    prompt: "You need per-API-key rate limits on a gateway fleet of 200 servers handling 1M QPS across 3 regions. Which designs are reasonable?",
+    prompt: "You need per-API-key rate limits on a gateway fleet of 200 servers handling 1M QPS across 3 regions. Each key's limit is global: it applies to the total across all 3 regions. Which designs are reasonable?",
     options: ["Every request does an atomic Lua script in a Redis cluster in its own region", "Each server keeps local token buckets and syncs counts to a central store every second, accepting slight overshoot", "A single SQL row per API key, locked with SELECT FOR UPDATE on every request", "Shard keys to gateway servers by API key so one server owns each key's bucket"],
-    answers: [0, 1, 3],
-    explain: "Regional Redis with Lua is accurate and fast enough. Local buckets with periodic sync trade a little accuracy for zero network hops. Sharding by key keeps each bucket on one box. A locked SQL row per request serializes every call for a hot key and melts the database."
+    answers: [1, 3],
+    explain: "Local buckets with periodic sync trade a little accuracy for zero network hops, and the central store sees the global total. Sharding by key keeps each bucket on one box, so the count is exact, at the price of a cross region hop for some requests. A Redis cluster in each region only counts its own region's traffic, so a key could use up to 3 times its limit unless you split the limit per region. A locked SQL row per request serializes every call for a hot key and melts the database."
   },
   {
     id: "s510", track: "sd", level: 5, topic: "Databases", type: "mcq",

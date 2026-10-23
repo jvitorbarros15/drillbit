@@ -54,7 +54,7 @@ function hasCycle(head) {
 
 ## Pitfalls
 
-- \`Array.shift()\` and \`unshift()\` are O(n) in JavaScript. Use a head index for queues
+- \`Array.shift()\` and \`unshift()\` can be O(n) in JavaScript, since engines only optimize some cases. Use a head index for queues
 - String concatenation in a loop can be O(n²) in some languages. Build an array and join
 - Hidden loops count: \`includes\`, \`indexOf\`, \`slice\` and spread are all O(n)`
   },
@@ -64,7 +64,7 @@ function hasCycle(head) {
     summary: "Hash maps and sets, the most common speedup in interviews, plus Bloom filters for when memory is tight.",
     body: `## The idea
 
-A hash function turns a key into a bucket index. Lookups, inserts and deletes are O(1) on average because you jump straight to the bucket instead of scanning. The worst case is O(n) if everything collides, which is why languages randomize hash seeds.
+A hash function turns a key into a bucket index. Lookups, inserts and deletes are O(1) on average because you jump straight to the bucket instead of scanning. The worst case is O(n) if everything collides, which is why many languages randomize hash seeds.
 
 ## When to reach for it
 
@@ -260,7 +260,7 @@ Same idea, but you can also drop from the front once items fall out of a window.
     summary: "When to sort, how to find the top k without sorting everything, and how a heap works under the hood.",
     body: `## Sorting
 
-Comparison sorts can't beat O(n log n). Merge sort is stable and always O(n log n) but needs O(n) extra memory. Quicksort is usually fastest in practice, but a bad pivot on adversarial input makes it O(n²), which is why real libraries use randomized pivots or introsort. JavaScript's \`sort\` is TimSort, stable and great on partly sorted data.
+Comparison sorts can't beat O(n log n). Merge sort is stable and always O(n log n) but needs O(n) extra memory. Quicksort is usually fastest in practice, but a bad pivot on adversarial input makes it O(n²), which is why real libraries use randomized pivots or introsort. JavaScript's \`sort\` is required to be stable, and V8 implements it with TimSort, which is great on partly sorted data.
 
 Remember: \`[10, 9, 1].sort()\` in JS sorts as strings. Always pass \`(a, b) => a - b\`.
 
@@ -337,7 +337,8 @@ Orders tasks so every dependency comes first. Kahn's algorithm: count incoming e
 
 ~~~
 const indeg = new Array(n).fill(0);
-for (const [a, b] of edges) indeg[b]++;   // a -> b
+const adj = Array.from({ length: n }, () => []);
+for (const [a, b] of prereqs) { adj[b].push(a); indeg[a]++; }   // b must come before a
 const queue = [];
 indeg.forEach((d, i) => d === 0 && queue.push(i));
 let done = 0;
@@ -511,11 +512,11 @@ Estimates decide the architecture. 100 QPS fits on one box. 100,000 QPS needs ca
 
 ## Numbers worth memorizing
 
-- A day has 86,400 seconds, call it **10^5**. So 1M requests a day is about 12 per second
+- A day has 86,400 seconds, call it **10^5**. So 1M requests a day is about 10 per second (about 12 with the exact 86,400)
 - L1 cache: about 1 ns. Main memory: about 100 ns
 - SSD random read: about 100 µs. Spinning disk seek: about 10 ms
 - Same datacenter round trip: about 0.5 ms
-- US coast to coast: about 40 ms round trip. US to Europe: about 80 ms. Light in fiber is the limit
+- US coast to coast: about 60 to 70 ms round trip (the fiber limit is about 40 ms). East Coast to Europe: about 80 ms. California to the Netherlands: about 150 ms. Light in fiber is the limit
 - 1 KB of text, 100 KB to 2 MB per photo, a few MB per minute of compressed video
 - A single well tuned server handles thousands to tens of thousands of simple requests per second
 
@@ -563,7 +564,7 @@ A server is stateless when any instance can handle any request. Move session dat
 ## API design basics
 
 - Use cursor pagination (\`?after=id\`) instead of \`OFFSET\` for big tables. \`OFFSET 100000\` makes the database scan and discard 100,000 rows
-- Idempotency: GET, PUT and DELETE are safe to retry. POST is not, so accept an \`Idempotency-Key\` for things like payments
+- Idempotency: GET, PUT and DELETE are idempotent, so retrying them is safe. POST is not, so accept an \`Idempotency-Key\` for things like payments
 - Version your API and never break existing clients
 - Return the right status: 429 for rate limited, 503 for overloaded, with a \`Retry-After\` header
 
@@ -577,7 +578,7 @@ Protects you from abuse and from your own buggy clients.
 - **Sliding window counter**: weighted blend of the current and previous window, close to exact and cheap
 
 ~~~
-function allow(bucket, now, rate, cap) {
+function allow(bucket, now, rate, cap) {   // now in seconds, rate in tokens per second
   bucket.tokens = Math.min(cap, bucket.tokens + (now - bucket.last) * rate);
   bucket.last = now;
   if (bucket.tokens < 1) return false;
@@ -639,7 +640,7 @@ A CDN caches content at edge locations around the world, so users fetch from 20 
     summary: "Picking a database, indexing, copying data for reads and safety, and splitting it when one machine isn't enough.",
     body: `## SQL or NoSQL
 
-- Relational (Postgres, MySQL): transactions, joins, flexible queries, strong consistency. The right default
+- Relational (Postgres, MySQL): transactions, joins, flexible queries, strong consistency. A common default
 - Key value and wide column (DynamoDB, Cassandra): huge scale and write throughput, but you design tables around your access patterns
 - Document (MongoDB): flexible nested records
 - Pick by access patterns and consistency needs, not by hype
@@ -656,7 +657,7 @@ Read committed avoids dirty reads. Snapshot isolation gives each transaction a c
 
 - **Leader follower**: writes go to the leader, reads can go to followers. Async replication means followers lag, so a user may not see their own write. Fix by reading your own writes from the leader for a short time
 - **Sync vs async**: sync replicas never lose acknowledged writes but add latency, async is fast but can lose the last few seconds on failover
-- **Quorums**: with N replicas, write to W and read from R. If W + R > N, every read overlaps the latest write
+- **Quorums**: with N replicas, write to W and read from R. With a strict quorum, if W + R > N, every read overlaps the latest acknowledged write (sloppy quorums and clock based conflict resolution can still return stale data)
 
 ## Sharding
 
@@ -781,7 +782,7 @@ When a client times out, it doesn't know if the work happened. An idempotency ke
 
 ## SLOs
 
-An SLO like "99.9% of requests succeed in under 300 ms" gives an error budget: 0.1% is about 43 minutes a month. Spend it on shipping fast, slow down when it's burned.
+An SLO like "99.9% of requests succeed in under 300 ms" gives an error budget: 0.1% of requests, which for a time based SLO is about 43 minutes a month. Spend it on shipping fast, slow down when it's burned.
 
 ## Disaster recovery
 
