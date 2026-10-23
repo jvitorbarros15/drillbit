@@ -34,3 +34,18 @@ test("bad guides fail", () => {
   bad(validateGuide, noTopics);
   bad(validateGuide, { ...guide, extra: 1 });
 });
+
+test("miss tags", () => {
+  assert.deepStrictEqual(validateLesson({ ...mcq, misses: [null, "p.x"] }), []);
+  assert.deepStrictEqual(validateLesson({ ...multi, miss: "p.x" }), []);
+  assert.deepStrictEqual(validateLesson({ ...num, miss: "p.x" }), []);
+  assert.deepStrictEqual(validateLesson({ ...code, tests: [{ args: [1], expected: 1, miss: "p.x" }] }), []);
+  bad(validateLesson, { ...mcq, misses: [null] });
+  bad(validateLesson, { ...mcq, misses: [null, 3] });
+  bad(validateLesson, { ...mcq, misses: "p.x" });
+  bad(validateLesson, { ...multi, miss: "" });
+  bad(validateLesson, { ...num, miss: 5 });
+  bad(validateLesson, { ...code, tests: [{ args: [1], expected: 1, miss: "" }] });
+  bad(validateLesson, { ...mcq, miss: "p.x" });
+  bad(validateLesson, { ...multi, misses: [null, null, null] });
+});

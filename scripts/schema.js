@@ -4,8 +4,8 @@ const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const isObj = v => v && typeof v === "object" && !Array.isArray(v);
 
 const COMMON = ["id", "track", "level", "topic", "type", "title", "prompt", "explain", "hint"];
-const EXTRA = { mcq: ["options", "answer"], multi: ["options", "answers"], number: ["answer", "min", "max", "unit"], code: ["fn", "starter", "solution", "tests"] };
-const TEST_KEYS = ["args", "argsCode", "expected", "expectedCode", "label"];
+const EXTRA = { mcq: ["options", "answer", "misses"], multi: ["options", "answers", "miss"], number: ["answer", "min", "max", "unit", "miss"], code: ["fn", "starter", "solution", "tests"] };
+const TEST_KEYS = ["args", "argsCode", "expected", "expectedCode", "label", "miss"];
 
 function validateLesson(l) {
   if (!isObj(l)) return ["lesson is not an object"];
@@ -24,15 +24,18 @@ function validateLesson(l) {
   if (l.type === "mcq") {
     const n = opts();
     if (!idx(l.answer, n)) e.push("answer must be an integer index into options");
+    if (has(l, "misses") && (!Array.isArray(l.misses) || l.misses.length !== n || !l.misses.every(m => m === null || str(m)))) e.push("misses must be an array the same length as options of null or non-empty strings");
   } else if (l.type === "multi") {
     const n = opts();
     if (!Array.isArray(l.answers) || !l.answers.length || !l.answers.every(i => idx(i, n)) || new Set(l.answers).size !== l.answers.length)
       e.push("answers must be a non-empty array of unique in-range integer indexes");
+    if (has(l, "miss") && !str(l.miss)) e.push("miss must be a non-empty string");
   } else if (l.type === "number") {
     const fin = ["answer", "min", "max"].filter(k => Number.isFinite(l[k]) && typeof l[k] === "number");
     for (const k of ["answer", "min", "max"]) if (!fin.includes(k)) e.push(`${k} must be a finite number`);
     if (fin.length === 3 && !(l.min <= l.answer && l.answer <= l.max)) e.push("answer must satisfy min <= answer <= max");
     if (has(l, "unit") && typeof l.unit !== "string") e.push("unit must be a string");
+    if (has(l, "miss") && !str(l.miss)) e.push("miss must be a non-empty string");
   } else {
     if (!str(l.fn) || !/^[A-Za-z_$][\w$]*$/.test(l.fn)) e.push("fn must be a valid JS identifier");
     for (const k of ["starter", "solution"]) if (!str(l[k])) e.push(`${k} must be a non-empty string`);
@@ -49,6 +52,7 @@ function validateLesson(l) {
       if (x === xc) e.push(`${p} needs exactly one of expected or expectedCode`);
       else if (xc && !str(t.expectedCode)) e.push(`${p}.expectedCode must be a non-empty string`);
       if (has(t, "label") && typeof t.label !== "string") e.push(`${p}.label must be a string`);
+      if (has(t, "miss") && !str(t.miss)) e.push(`${p}.miss must be a non-empty string`);
     });
   }
   return e;

@@ -1,6 +1,8 @@
 // Sanity checks for the lesson bank. Run: node scripts/verify.js
 const LESSONS = require("../data.js");
 const { validateLesson, validateGuide } = require("./schema.js");
+const { checkPatterns, unusedTopics, contentBar } = require("./patterns-check.js");
+const PATTERNS = require("../patterns.js");
 
 function eq(a, b) {
   if (a === b) return true;
@@ -74,10 +76,20 @@ for (const g of GUIDES) {
 }
 for (const t of new Set(LESSONS.map(l => l.topic))) if (!covered.has(t)) fail(t, "topic has no study guide");
 
+checkPatterns(PATTERNS, LESSONS, GUIDES).forEach(m => fail("patterns", m));
+unusedTopics(PATTERNS, LESSONS).forEach(m => console.log(`note: ${m}`));
+
 const count = (pred) => LESSONS.filter(pred).length;
 console.log(`${GUIDES.length} guides, ${vizNames.size} interactive widgets`);
 console.log(`\n${LESSONS.length} lessons, ${count(l => l.type === "code")} coding challenges`);
 for (const t of ["algo", "sd"])
   console.log(t, [1, 2, 3, 4, 5].map(L => `L${L}:${count(l => l.track === t && l.level === L)}`).join(" "));
+console.log("");
+console.log("pattern content bar (launch bar: 3 code, 5 recognition)");
+console.log("pattern".padEnd(16) + "code".padStart(5) + "recog".padStart(7) + "misc".padStart(6) + "  status");
+for (const r of contentBar(PATTERNS, LESSONS)) {
+  const need = [r.code < 3 ? `${3 - r.code} code` : "", r.recognition < 5 ? `${5 - r.recognition} recognition` : ""].filter(Boolean);
+  console.log(r.id.padEnd(16) + String(r.code).padStart(5) + String(r.recognition).padStart(7) + String(r.misconceptions).padStart(6) + "  " + (need.length ? "needs " + need.join(", ") : "ok"));
+}
 console.log(failures ? `\n${failures} problem(s)` : "\nAll checks passed");
 process.exit(failures ? 1 : 0);
