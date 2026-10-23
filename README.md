@@ -62,8 +62,8 @@ Every topic must be listed in some guide's `topics` in `guides.js`, so missed qu
 
 Add an entry to `guides.js` with `id`, `track`, `title`, `topics`, `summary` and `body`. The body supports `## ` headings, `- ` bullets, `~~~` code fences, inline code, `**bold**`, and `::viz name` to drop in a widget from `viz.js`.
 
-Then run the checker. It runs every reference solution against its tests and checks the guides (topic coverage, code fences, widget names):
+Then run `npm test`. CI runs it on every push and pull request. It validates every lesson and guide against a strict schema (unknown keys fail), runs every reference solution against its tests and checks that each starter fails its own tests and the guides (topic coverage, code fences, widget names):
 
 ```bash
-node scripts/verify.js
+npm test
 ```
