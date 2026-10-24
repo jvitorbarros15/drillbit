@@ -50,7 +50,8 @@ test("inferMiss for every type", () => {
   assert.strictEqual(C.inferMiss({ type: "number", miss: "pa.m2" }, {}), "pa.m2");
   assert.strictEqual(C.inferMiss({ type: "number" }, {}), null);
   assert.strictEqual(C.inferMiss(L("ca1"), { results: [{ pass: true }, { pass: false }, { pass: false }] }), "pa.m3");
-  assert.strictEqual(C.inferMiss(L("ca1"), { results: [{ pass: false }, { pass: false }, { pass: false }] }), "pa.m1");
+  assert.strictEqual(C.inferMiss(L("ca1"), { results: [{ pass: false }, { pass: false }, { pass: false }] }), null);
+  assert.strictEqual(C.inferMiss(L("ca1"), { results: [{ pass: false }, { pass: true }, { pass: false }] }), "pa.m1");
   assert.strictEqual(C.inferMiss(L("ca1"), { results: [{ pass: true }, { pass: false }, { pass: true }] }), null);
   assert.strictEqual(C.inferMiss(L("ca1"), { results: [{ pass: true }, { pass: true }, { pass: true }] }), null);
 });

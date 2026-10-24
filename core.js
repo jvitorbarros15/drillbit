@@ -95,6 +95,7 @@
     if (lesson.type === "multi" || lesson.type === "number") return lesson.miss || null;
     if (lesson.type === "code") {
       const res = (response && response.results) || [];
+      if (!res.some(r => r && r.pass)) return null;
       for (let i = 0; i < lesson.tests.length; i++) if (res[i] && !res[i].pass && lesson.tests[i].miss) return lesson.tests[i].miss;
     }
     return null;
