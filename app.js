@@ -40,7 +40,13 @@
     } catch (e) { /* private mode or bad json */ }
     return CORE.blankState();
   }
-  function save() { S.updatedAt = new Date().toISOString(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } }
+  function persist() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } }
+  function save() {
+    S.updatedAt = new Date().toISOString();
+    persist();
+    AUTH.push(S);
+    AUTH.syncQueue(S.misses);
+  }
 
   let notice = null;
   function reconcileStreak() {
@@ -167,7 +173,36 @@
     $("#chips").innerHTML = `
       <span class="chip flame ${doneToday ? "lit" : ""}" title="Day streak">${flameSvg()}<b>${S.streak}</b></span>
       <span class="chip ice" title="Streak freezes">${iceSvg()}<b>${S.freezes}</b></span>
-      ${date}`;
+      ${date}${AUTH.enabled ? accountChips() : ""}`;
+  }
+  function accountChips() {
+    const u = AUTH.user();
+    return u
+      ? `<span class="chip who" title="${esc(u.email || "")}">${esc(u.email || "Signed in")}</span><button class="chip" data-act="sign-out">Sign out</button>`
+      : `<button class="chip" data-act="sign-in">Sign in</button>`;
+  }
+  const authBox = () => `
+    <div class="panel auth-box">
+      <h3>Save your progress</h3>
+      <p class="muted small">Sign in to keep your progress across devices. Playing without an account still works.</p>
+      <div class="auth-row">
+        <input id="auth-email" class="date-input" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email" />
+        <button class="btn primary" data-act="auth-email">Email me a link</button>
+      </div>
+      <div class="auth-row"><button class="btn ghost" data-act="auth-google">Continue with Google</button></div>
+    </div>`;
+  function renderAccount() {
+    run = null; cur = null;
+    setNav("");
+    renderChips();
+    const u = AUTH.user();
+    app.innerHTML = `
+      <section class="learn-head">
+        <p class="eyebrow">Account</p>
+        <h1>${u ? "You're signed in." : "Sign in."}</h1>
+        ${u ? `<p class="muted">${esc(u.email || "")}. Your progress syncs to this account.</p>` : ""}
+      </section>
+      ${u ? "" : authBox()}`;
   }
   const flameSvg = () => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-6 1-9.5z"/></svg>`;
   const iceSvg = () => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 2 3-2M9 20l3-2 3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
@@ -510,6 +545,7 @@
     if (h === "learn") renderLearn();
     else if (h.startsWith("learn/")) renderGuide(h.slice(6));
     else if (h === "practice") renderPractice();
+    else if (h === "account") renderAccount();
     else renderHome();
     window.scrollTo(0, 0);
   }
@@ -569,7 +605,7 @@
 
     const item = BY_ID[entry.lessonId];
     const noHint = run.mode === "diagnostic" || !!entry.independent;
-    cur = { item, entry, answered: false, sel: new Set(), hinted: false, noHint, response: null, firstFail: null, asking: false };
+    cur = { item, entry, startedAt: Date.now(), answered: false, sel: new Set(), hinted: false, noHint, response: null, firstFail: null, asking: false };
 
     app.innerHTML = `
       <div class="run">
@@ -805,8 +841,12 @@
     cur.asking = false;
     cur.tag = tag;
     const { item, entry, correct } = cur;
-    if (run.mode === "diagnostic") run.answers.push({ lessonId: item.id, correct, tag });
-    else CORE.recordAttempt(S, ctx, today(), { lessonId: item.id, correct, tag, hinted: cur.hinted, reviewOf: entry.kind === "review" ? entry.tag : undefined });
+    const durationMs = Date.now() - cur.startedAt;
+    if (run.mode === "diagnostic") run.answers.push({ lessonId: item.id, correct, tag, durationMs });
+    else {
+      CORE.recordAttempt(S, ctx, today(), { lessonId: item.id, correct, tag, hinted: cur.hinted, reviewOf: entry.kind === "review" ? entry.tag : undefined });
+      AUTH.logAttempt({ item_id: item.id, correct, misconception_tag: tag, duration_ms: durationMs });
+    }
     run.results.push({ correct });
     save();
     renderChips();
@@ -858,6 +898,7 @@
     const t = today();
     if (run.mode === "diagnostic") {
       CORE.recordDiagnostic(S, ctx, t, run.answers);
+      run.answers.forEach(a => AUTH.logAttempt({ item_id: a.lessonId, correct: a.correct, misconception_tag: a.tag, duration_ms: a.durationMs }));
       save();
       renderDiagResults();
       run = null; cur = null;
@@ -883,6 +924,7 @@
         <p class="eyebrow">Diagnostic complete</p>
         <h1>Here is where you stand.</h1>
         ${readinessPanel()}
+        ${AUTH.enabled && !AUTH.user() ? authBox() : ""}
         <div class="panel">
           <h3>Your first session is ready</h3>
           <p class="muted small">Interview date (optional). It sets the pace of your plan.</p>
@@ -985,6 +1027,15 @@
       }
       case "session": startSession(); window.scrollTo(0, 0); break;
       case "concept-next": conceptNext(); break;
+      case "sign-in": go("#account"); break;
+      case "sign-out": AUTH.signOut().then(() => toast("Signed out. Progress stays on this device.")); break;
+      case "auth-email": {
+        const v = $("#auth-email").value.trim();
+        if (!v) { toast("Enter your email."); break; }
+        AUTH.signInWithEmail(v).then(r => toast(r && r.ok ? "Check your email for the sign-in link." : "Couldn't send the link. Try again."));
+        break;
+      }
+      case "auth-google": AUTH.signInWithGoogle(); break;
       case "set-date": {
         el.outerHTML = `<input class="chip date-input" type="date" id="chip-date" aria-label="Interview date" value="${S.profile.interviewDate || ""}" />`;
         const inp = $("#chip-date");
@@ -1050,6 +1101,11 @@
 
   // ---------- boot ----------
   window.addEventListener("hashchange", route);
+  AUTH.attach({ get: () => S, set: s => { S = s; persist(); }, notify: toast });
+  AUTH.onChange(what => {
+    renderChips();
+    if (what === "synced" && !run) route();
+  });
   reconcileStreak();
   route();
   document.addEventListener("visibilitychange", () => {

@@ -18,6 +18,18 @@ Short daily sessions for algorithm patterns, plus system design practice. Take a
 
 Progress is saved in your browser's localStorage. Use Export / Import at the bottom of the home screen to move it between devices. Progress from the earlier version is migrated on first load.
 
+## Accounts (optional)
+
+The app works without an account, with progress in your browser. To add sign-in and sync across devices:
+
+1. Create a Supabase project.
+2. Run `supabase/migrations/20261023000000_init.sql` in the SQL editor (or with the Supabase CLI).
+3. In Authentication, Providers, enable Email and Google.
+4. Copy `config.example.js` to `config.js` and fill in the project URL and the anon key. `config.js` is gitignored. The anon key is meant to be public, row level security protects the data.
+5. In Authentication, URL Configuration, add the site URL you serve the app from (for example `http://localhost:8000` locally and your deployed URL) to the redirect URLs, since sign-in links and Google return there.
+
+Without `config.js` nothing account related loads. With it, the page loads `@supabase/supabase-js` 2.117.1 from jsDelivr.
+
 ## Run locally
 
 No build step. Any static server works (the code runner uses a Web Worker, so opening the file directly won't run code):
@@ -47,6 +59,9 @@ Option B, GitHub: push this folder to a repo, then on vercel.com click Add New >
 - `viz.js`: interactive widgets used by the guides
 - `patterns.js`: the algorithm patterns and their misconception tags
 - `core.js`: learning logic (misses, schedule, readiness, session)
+- `auth.js`: optional Supabase sign-in and sync
+- `config.example.js`: template for `config.js`
+- `supabase/`: the migration and the test bootstrap for it
 - `app.js`: the UI
 - `styles.css`, `learn.css`: styles
 
