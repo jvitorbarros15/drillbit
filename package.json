@@ -2,7 +2,10 @@
   "name": "drillbit",
   "private": true,
   "scripts": {
-    "test": "node scripts/verify.js && node --test scripts/schema.test.js scripts/patterns-check.test.js scripts/core.test.js",
-    "lint": "node --check app.js && node --check data.js && node --check guides.js && node --check viz.js && node --check scripts/verify.js && node --check scripts/schema.js && node --check patterns.js && node --check scripts/patterns-check.js && node --check core.js"
+    "test": "node scripts/verify.js && node --test scripts/schema.test.js scripts/patterns-check.test.js scripts/core.test.js scripts/rls.test.js",
+    "lint": "node --check app.js && node --check data.js && node --check guides.js && node --check viz.js && node --check scripts/verify.js && node --check scripts/schema.js && node --check patterns.js && node --check scripts/patterns-check.js && node --check core.js && node --check scripts/rls.test.js"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.11"
   }
 }
