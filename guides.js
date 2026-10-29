@@ -501,6 +501,167 @@ Uses: autocomplete (store top suggestions at each node), spell checking, IP rout
 - Common combos: map + list (LRU), map + heap (top k with updates), map + array (O(1) random pick and delete by swapping with the last element)`
   },
 
+  {
+    id: "trees", track: "algo", title: "Trees: recursion, BFS and BSTs",
+    topics: ["Trees"],
+    summary: "Solve tree problems by deciding what each subtree returns, or walk level by level with BFS. Includes traversal orders and the BST rule.",
+    body: `## The idea
+
+A binary tree node holds a value and up to two children. In these lessons a node is an object \`{ val, left, right }\` and a missing child is \`null\`. Most tree problems have the same shape: decide what a subtree should tell its parent, ask the left and right child, then combine the two answers.
+
+## Recursive DFS that returns a value
+
+~~~
+function maxDepth(node) {
+  if (node === null) return 0;        // base case: an empty tree
+  const l = maxDepth(node.left);
+  const r = maxDepth(node.right);
+  return 1 + Math.max(l, r);          // combine the children's answers
+}
+~~~
+
+Write the null base case first. Every leaf calls the function on two null children, so a missing or wrong base case either crashes on \`null.left\` or shifts every answer by one. Call each child once and keep the result in a variable.
+
+## BFS by level
+
+When the question is about rows, distance from the root, or the nearest leaf, walk the tree level by level. Hold the current level as a list and build the next one from its children:
+
+~~~
+function levels(root) {
+  if (root === null) return [];
+  const out = [];
+  let level = [root];
+  while (level.length) {
+    out.push(level.map(n => n.val));
+    const next = [];
+    for (const n of level) {
+      if (n.left) next.push(n.left);
+      if (n.right) next.push(n.right);
+    }
+    level = next;
+  }
+  return out;
+}
+~~~
+
+BFS reaches nodes in order of their distance from the root, so the first leaf it meets is a shallowest one and it can stop there. A DFS has to check the whole tree before it knows.
+
+## Traversal orders
+
+- **Preorder**: node, left, right. Good for copying a tree or writing it out
+- **Inorder**: left, node, right. On a binary search tree this visits values in ascending order
+- **Postorder**: left, right, node. Children first, so use it when a node needs its children's answers, like height or deleting a tree
+- **Level order**: BFS, row by row from the top
+
+## Binary search trees
+
+In a BST every value in a node's left subtree is smaller than the node and every value in its right subtree is larger. Comparing a node only with its parent is not enough: a 3 can sit under the right child of a 5 and still be smaller than its parent. Pass a range down instead:
+
+~~~
+function isValid(node, lo = -Infinity, hi = Infinity) {
+  if (node === null) return true;
+  if (node.val <= lo || node.val >= hi) return false;
+  return isValid(node.left, lo, node.val) && isValid(node.right, node.val, hi);
+}
+~~~
+
+This treats duplicates as invalid. Check the statement, since some versions allow equal values on one side. An inorder walk that must be strictly increasing is an equivalent test.
+
+## Height and depth
+
+The depth of a node is the number of edges from the root down to it. The height of a node is the number of edges from it down to its deepest leaf. Problems often count nodes instead of edges, which adds 1, so settle the convention and make the base case match it.
+
+## Pitfalls
+
+- Missing or wrong null base case
+- Checking the BST rule against the parent only
+- Mixing up preorder, inorder and postorder
+- Deep recursion: a chain of 100,000 nodes can overflow the call stack. Balanced trees are only about log n deep, but a skewed one needs an iterative version with your own stack or a queue
+- Calling the recursive function twice on the same child, which repeats work at every level
+
+## Complexity
+
+Visiting every node once is O(n) time. A recursive DFS uses O(h) stack where h is the height: about log n if balanced and n for a chain. BFS keeps one level in memory, which is O(1) on a chain and about n/2 on a complete tree. Searching a BST takes O(h), which is O(log n) only when the tree is balanced.`
+  },
+  {
+    id: "intervals", track: "algo", title: "Intervals: merge, insert and meeting rooms",
+    topics: ["Intervals"],
+    summary: "Sort by start, sweep once with a running end, and pick the overlap rule before you write the comparison.",
+    body: `## The idea
+
+An interval is a pair \`[start, end]\`. Most interval problems get simple once the intervals are sorted by start, because an interval can then only overlap the one you are currently building.
+
+## Sort by start
+
+~~~
+intervals.sort((a, b) => a[0] - b[0]);
+~~~
+
+Always pass the numeric comparator, since the default sort compares values as strings. Sorting costs O(n log n) and usually dominates the running time. Copy the array first if you should not change the caller's data.
+
+## The overlap test
+
+If \`a\` starts no later than \`b\`, they overlap when \`b.start <= a.end\`. That counts touching intervals like [1,4] and [4,5] as overlapping. If the problem says touching does not count, use a strict \`<\`. For any two intervals in any order the test is \`a.start <= b.end && b.start <= a.end\`.
+
+State the convention before writing code. It changes by one character and the edge cases are exactly the touching ones.
+
+## Merge
+
+~~~
+function merge(intervals) {
+  const sorted = intervals.slice().sort((a, b) => a[0] - b[0]);
+  const out = [];
+  for (const [s, e] of sorted) {
+    const last = out[out.length - 1];
+    if (last && s <= last[1]) last[1] = Math.max(last[1], e);
+    else out.push([s, e]);
+  }
+  return out;
+}
+~~~
+
+Compare only with the last merged interval. The merged end is a max: [1,10] followed by [2,3] must stay [1,10].
+
+## Insert into a sorted list
+
+If the list is already sorted and non-overlapping, no sort is needed. Copy the intervals that end before the new one starts, absorb every interval that overlaps it by widening its bounds with min and max, then copy the rest. One pass, O(n).
+
+## Meeting rooms
+
+The minimum number of rooms is the largest number of meetings running at the same time. Two standard ways:
+
+- Sort the starts and the ends separately and sweep. Each start either reuses the room that frees up first or opens a new one
+- Sort by start and keep a min heap of end times. If the smallest end is at most the new start, pop it and reuse that room. Push the new end. The heap size at the end is the answer
+
+~~~
+const starts = intervals.map(x => x[0]).sort((a, b) => a - b);
+const ends = intervals.map(x => x[1]).sort((a, b) => a - b);
+let rooms = 0, j = 0;
+for (let i = 0; i < starts.length; i++) {
+  if (starts[i] >= ends[j]) j++;
+  else rooms++;
+}
+~~~
+
+Here a meeting holds its room until its end but not including it, so a meeting ending at 10 and one starting at 10 share a room. That is the opposite of the merge example, which is why you read the convention first. Both versions are O(n log n).
+
+## Greedy scheduling
+
+To fit the most non-overlapping jobs, sort by end time and take each job that starts at or after the last chosen end. The job that finishes earliest leaves the most room. Sorting by start or by shortest length fails on small counterexamples. If every job has a weight and you want the largest total, greedy no longer works and you need dynamic programming.
+
+## Pitfalls
+
+- Forgetting to sort, or sorting without the numeric comparator
+- Wrong overlap test when endpoints touch
+- Replacing the merged end with the new end instead of the max
+- Comparing every pair, which is O(n^2) and times out on 100,000 intervals
+- Mutating the input when the caller still needs it
+
+## Complexity
+
+Merge: O(n log n) for the sort plus O(n) for the sweep. Insert into a sorted list: O(n). Meeting rooms: O(n log n).`
+  },
+
   // ============================ SYSTEM DESIGN ============================
   {
     id: "estimation", track: "sd", title: "Back of the envelope estimation",

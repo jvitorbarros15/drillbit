@@ -67,7 +67,7 @@ test("CONTENT_META describes the split", () => {
   const { CONTENT_META: m } = load(out);
   assert.deepStrictEqual([...m.freePatterns], ["hashing", "two-pointers"]);
   assert.strictEqual(m.paidLessons, S.paidLessons.length);
-  assert.strictEqual(m.patternsWithContent, 11);
+  assert.strictEqual(m.patternsWithContent, 13);
   assert.ok(m.lockedPatterns.length > 0);
   assert.ok(!m.lockedPatterns.includes("hashing") && !m.lockedPatterns.includes("two-pointers"));
 });

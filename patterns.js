@@ -124,7 +124,7 @@ const PATTERNS = [
   {
     id: "trees", name: "Trees",
     topics: ["Trees"],
-    guide: null,
+    guide: "trees",
     misconceptions: [
       { id: "trees.wrong-pattern", label: "Used a different technique than tree recursion or BFS",
         fix: "Most tree questions are answered by recursion on the left and right subtrees, or by BFS when you need levels. Flattening the tree to an array or comparing every pair of nodes loses the structure and costs more. Decide what each subtree should return to its parent." },
@@ -141,7 +141,7 @@ const PATTERNS = [
   {
     id: "intervals", name: "Intervals and greedy",
     topics: ["Intervals"],
-    guide: null,
+    guide: "intervals",
     misconceptions: [
       { id: "intervals.wrong-pattern", label: "Used a different technique than sort then sweep",
         fix: "Most interval problems become one pass once the intervals are sorted by start. Comparing every pair is O(n squared) and easy to get wrong with several overlaps in a row. Sort first, then keep a running end." },

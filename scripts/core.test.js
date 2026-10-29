@@ -371,7 +371,7 @@ test("smoke over the real content", () => {
   const diag = C.buildDiagnostic(real);
   assert.strictEqual(diag.length, 8);
   assert.ok(diag.every(id => algoIds.has(id)));
-  assert.strictEqual(diag.filter(id => real.lessons.find(l => l.id === id).type === "code").length, 1);
+  assert.strictEqual(diag.filter(id => real.lessons.find(l => l.id === id).type === "code").length, 2);
   const s = C.blankState();
   for (const date of [null, "2026-03-13", "2026-03-01"]) {
     s.profile.interviewDate = date;

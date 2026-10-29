@@ -248,7 +248,7 @@ const LESSONS = [
     explain: "A size-k min-heap holds the best 10 so far. Each new item only competes with the smallest of those 10. That's O(n log k) time and O(k) memory, and it works on data that doesn't fit in RAM. Plenty of 'trending' jobs are built exactly like this."
   },
   {
-    id: "a207", track: "algo", level: 2, topic: "Sorting", type: "code",
+    id: "a207", track: "algo", level: 2, topic: "Intervals", type: "code",
     title: "Merge intervals",
     prompt: "Given `intervals` like `[[1,3],[2,6]]`, merge everything that overlaps and return the result sorted by start. Touching intervals such as [1,4] and [4,5] also merge.",
     fn: "merge",
@@ -258,9 +258,9 @@ const LESSONS = [
     hint: "Sort by start. After that, each interval either extends the last merged one or starts a new one.",
     tests: [
       { args: [[[1, 3], [2, 6], [8, 10], [15, 18]]], expected: [[1, 6], [8, 10], [15, 18]] },
-      { args: [[[1, 4], [4, 5]]], expected: [[1, 5]] },
-      { args: [[[5, 6], [1, 2]]], expected: [[1, 2], [5, 6]], miss: "heaps.forgot-sort" },
-      { args: [[[1, 10], [2, 3], [4, 5]]], expected: [[1, 10]] },
+      { args: [[[1, 4], [4, 5]]], expected: [[1, 5]], miss: "intervals.touching" },
+      { args: [[[5, 6], [1, 2]]], expected: [[1, 2], [5, 6]], miss: "intervals.unsorted" },
+      { args: [[[1, 10], [2, 3], [4, 5]]], expected: [[1, 10]], miss: "intervals.wrong-neighbor" },
       { args: [[]], expected: [] }
     ],
     solution: `function merge(intervals) {
@@ -695,12 +695,12 @@ const LESSONS = [
     explain: "BFS over an implicit graph. Generating neighbors by mutation (26 × word length per word) beats comparing every pair of words. Bidirectional BFS, searching from both ends and meeting in the middle, cuts the search dramatically on big dictionaries."
   },
   {
-    id: "a503", track: "algo", level: 5, topic: "Strings", type: "mcq",
+    id: "a503", track: "algo", level: 5, topic: "Hashing", type: "mcq",
     title: "Rolling hash",
     prompt: "You search for a 1 KB pattern inside a 1 GB log. Rabin-Karp avoids rehashing each 1 KB window from scratch by:",
     options: ["Caching every window", "Updating the hash in O(1) as the window slides: remove the outgoing char, add the incoming one", "Sorting the log", "Building a trie of the log"],
     answer: 1,
-    misses: ["two-pointers.wrong-pattern", null, "two-pointers.wrong-pattern", "two-pointers.wrong-pattern"],
+    misses: ["hashing.wrong-pattern", null, "hashing.wrong-pattern", "hashing.wrong-pattern"],
     explain: "A polynomial rolling hash updates with a subtract, a multiply and an add. Candidate matches get verified to rule out collisions. rsync, content-defined chunking in backup tools, and dedupe in storage systems all use rolling hashes."
   },
   {
@@ -1659,6 +1659,254 @@ const LESSONS = [
     options: ["A dirty read, fixed by READ COMMITTED", "Write skew: each transaction read a snapshot and wrote different rows, so no conflict was detected. Fix with SERIALIZABLE or by locking the rows you read (SELECT ... FOR UPDATE)", "A lost update, fixed by adding an index", "Replication lag, fixed by reading from the primary"],
     answer: 1,
     explain: "Snapshot isolation only catches two transactions writing the same row. Here they wrote different rows, but each decision depended on data the other changed. SERIALIZABLE (Postgres SSI) detects the dependency and aborts one. Explicit locks or a constraint you can enforce in one row also work."
+  },
+  // ============================ TREES AND INTERVALS ============================
+  {
+    id: "a111", track: "algo", level: 1, topic: "Trees", type: "code",
+    title: "Maximum depth of a binary tree",
+    prompt: "A binary tree is given as nested objects `{ val, left, right }`, with `null` for a missing child. `root` is `null` for an empty tree. Return the number of nodes on the longest path from the root down to a leaf. An empty tree has depth 0.",
+    fn: "maxDepth",
+    starter: `function maxDepth(root) {
+
+}`,
+    hint: "What does an empty subtree return? Then a node is 1 plus the larger answer of its two children.",
+    tests: [
+      { args: [null], expected: 0, miss: "trees.null-base" },
+      { args: [{ val: 1, left: null, right: null }], expected: 1, miss: "trees.height-vs-depth" },
+      { args: [{ val: 3, left: { val: 9, left: null, right: null }, right: { val: 20, left: { val: 15, left: null, right: null }, right: { val: 7, left: null, right: null } } }], expected: 3 },
+      { args: [{ val: 1, left: { val: 2, left: { val: 3, left: null, right: null }, right: null }, right: null }], expected: 3 },
+      { label: "Balanced tree with 65,535 nodes", argsCode: "[(function b(lo, hi) { if (lo > hi) return null; const m = (lo + hi) >> 1; return { val: m, left: b(lo, m - 1), right: b(m + 1, hi) }; })(1, 65535)]", expected: 16 },
+      { label: "Left leaning chain of 2,000 nodes", argsCode: "[(function () { let n = null; for (let i = 0; i < 2000; i++) n = { val: i, left: n, right: null }; return n; })()]", expected: 2000 }
+    ],
+    solution: `function maxDepth(root) {
+  if (root === null) return 0;
+  const l = maxDepth(root.left);
+  const r = maxDepth(root.right);
+  return 1 + Math.max(l, r);
+}`,
+    explain: "An empty tree has depth 0, so null is the base case. Any other node is 1 plus the deeper of its two subtrees, so every node asks its children and combines the answers. That visits each node once, O(n) time, with a call stack as deep as the tree. Call each child once and keep the result: calling it a second time just to return it makes the work double at every level of a deep tree."
+  },
+  {
+    id: "a112", track: "algo", level: 1, topic: "Trees", type: "mcq",
+    title: "The null base case",
+    prompt: "A recursive function counts the nodes of a binary tree with `count(node) = 1 + count(node.left) + count(node.right)`. What must `count(null)` return?",
+    options: ["1", "0", "-1", "Nothing, because leaves never reach this call"],
+    answer: 1,
+    misses: ["trees.null-base", null, "trees.height-vs-depth", "trees.null-base"],
+    explain: "An empty subtree holds zero nodes, so it adds nothing to the sum. Leaves do reach the null case: every leaf calls the function on both of its missing children. Without a base case the call reads a field of `null` and crashes. What the base case returns depends on the question: 0 for a count or a sum, 0 or -1 for a height depending on whether you count nodes or edges."
+  },
+  {
+    id: "a113", track: "algo", level: 1, topic: "Trees", type: "mcq",
+    title: "Height versus depth",
+    prompt: "In a binary tree, node `X` is 3 edges below the root, and the longest path from `X` down to a leaf is 2 edges. Which statement is correct?",
+    options: ["X has depth 3 and height 2", "X has depth 2 and height 3", "X has depth 3 and height 3", "X has depth 5 and height 0"],
+    answer: 0,
+    misses: [null, "trees.height-vs-depth", "trees.height-vs-depth", "trees.height-vs-depth"],
+    explain: "Depth counts down from the root to the node. Height counts down from the node to its deepest leaf. The height of the whole tree is the height of the root, which equals the largest depth of any node. Some problems count nodes instead of edges, which adds 1 to each number, so check which convention the statement uses before writing the base case."
+  },
+  {
+    id: "a114", track: "algo", level: 1, topic: "Intervals", type: "mcq",
+    title: "Touching endpoints",
+    prompt: "A problem says intervals that share an endpoint count as overlapping. What does merging `[[1,2],[2,3]]` return?",
+    options: ["[[1,3]]", "[[1,2],[2,3]]", "[[1,2]]", "[[2,3]]"],
+    answer: 0,
+    misses: [null, "intervals.touching", "intervals.wrong-neighbor", "intervals.wrong-neighbor"],
+    explain: "With touching counted as overlap, the test is `next.start <= current.end`. Here 2 <= 2, so they merge into `[1, max(2, 3)]`, which is `[1,3]`. If the problem said touching does not count, the test becomes a strict `<` and the two intervals stay apart. Read the convention first. The code differs by one character."
+  },
+  {
+    id: "a214", track: "algo", level: 2, topic: "Trees", type: "code",
+    title: "Validate a binary search tree",
+    prompt: "A binary tree is given as nested objects `{ val, left, right }`, with `null` for a missing child. Return `true` if it is a valid binary search tree: every value in a node's left subtree is strictly smaller than the node, and every value in its right subtree is strictly larger. An empty tree is valid, and duplicates are not allowed.",
+    fn: "isValidBST",
+    starter: `function isValidBST(root) {
+
+}`,
+    hint: "A node must fit between bounds set by all of its ancestors, not just its parent. What range can you pass down to each child?",
+    tests: [
+      { args: [null], expected: true, miss: "trees.null-base" },
+      { args: [{ val: 2, left: { val: 1, left: null, right: null }, right: { val: 3, left: null, right: null } }], expected: true },
+      { args: [{ val: 5, left: { val: 1, left: null, right: null }, right: { val: 4, left: { val: 3, left: null, right: null }, right: { val: 6, left: null, right: null } } }], expected: false },
+      { args: [{ val: 5, left: { val: 4, left: null, right: null }, right: { val: 6, left: { val: 3, left: null, right: null }, right: { val: 7, left: null, right: null } } }], expected: false, miss: "trees.local-bst" },
+      { args: [{ val: 10, left: { val: 5, left: { val: 3, left: null, right: null }, right: { val: 12, left: null, right: null } }, right: { val: 15, left: null, right: null } }], expected: false, miss: "trees.local-bst" },
+      { args: [{ val: 2, left: { val: 2, left: null, right: null }, right: null }], expected: false },
+      { label: "Valid chain of 2,000 ascending nodes", argsCode: "[(function () { let n = null; for (let i = 2000; i >= 1; i--) n = { val: i, left: null, right: n }; return n; })()]", expected: true },
+      { label: "32,767 nodes, one deep leaf breaks the root's rule", argsCode: "[(function () { const b = (lo, hi) => lo > hi ? null : (m => ({ val: m, left: b(lo, m - 1), right: b(m + 1, hi) }))((lo + hi) >> 1); const t = b(1, 32767); let n = t.left; while (n.right) n = n.right; n.val = t.val + 1; return t; })()]", expected: false, miss: "trees.local-bst" }
+    ],
+    solution: `function isValidBST(root) {
+  const ok = (node, lo, hi) => {
+    if (node === null) return true;
+    if (node.val <= lo || node.val >= hi) return false;
+    return ok(node.left, lo, node.val) && ok(node.right, node.val, hi);
+  };
+  return ok(root, -Infinity, Infinity);
+}`,
+    explain: "Each call carries an open range that the node must stay inside. Going left tightens the upper bound to the node's value, going right tightens the lower bound. A check that only compares a node with its parent accepts a 3 hiding in the right subtree of a 5, because 3 is smaller than its own parent 6. An inorder walk that must be strictly increasing is an equivalent test. Both run in O(n) time with O(h) stack."
+  },
+  {
+    id: "a215", track: "algo", level: 2, topic: "Intervals", type: "code",
+    title: "Insert interval",
+    prompt: "`intervals` is a list of `[start, end]` pairs sorted by start with no overlaps, and `newInterval` is one more `[start, end]`. Insert it and merge whatever overlaps, so the result is still sorted and non-overlapping. Intervals that only touch, like [1,5] and [5,8], count as overlapping and merge. Do not sort; the input is already ordered.",
+    fn: "insertInterval",
+    starter: `function insertInterval(intervals, newInterval) {
+
+}`,
+    hint: "Three groups: intervals that end before the new one starts, intervals that overlap it, and the rest. Only the middle group changes the new interval's bounds.",
+    tests: [
+      { args: [[[1, 3], [6, 9]], [2, 5]], expected: [[1, 5], [6, 9]] },
+      { args: [[[1, 2], [3, 5], [6, 7], [8, 10], [12, 16]], [4, 8]], expected: [[1, 2], [3, 10], [12, 16]] },
+      { args: [[], [5, 7]], expected: [[5, 7]] },
+      { args: [[[1, 5]], [2, 3]], expected: [[1, 5]], miss: "intervals.wrong-neighbor" },
+      { args: [[[1, 2], [5, 6]], [3, 4]], expected: [[1, 2], [3, 4], [5, 6]] },
+      { args: [[[3, 4]], [1, 2]], expected: [[1, 2], [3, 4]] },
+      { args: [[[1, 5]], [5, 8]], expected: [[1, 8]], miss: "intervals.touching" },
+      { args: [[[1, 5], [6, 8]], [5, 6]], expected: [[1, 8]], miss: "intervals.touching" },
+      { args: [[[2, 3], [4, 5]], [1, 10]], expected: [[1, 10]] },
+      { label: "100,000 intervals, new one swallows 60,000 of them", argsCode: "[Array.from({ length: 100000 }, (_, i) => [3 * i, 3 * i + 1]), [60000, 240000]]", expectedCode: "[...Array.from({ length: 20000 }, (_, i) => [3 * i, 3 * i + 1]), [60000, 240001], ...Array.from({ length: 19999 }, (_, i) => [3 * (80001 + i), 3 * (80001 + i) + 1])]", miss: "intervals.wrong-pattern" }
+    ],
+    solution: `function insertInterval(intervals, newInterval) {
+  const out = [];
+  let i = 0;
+  let [s, e] = newInterval;
+  while (i < intervals.length && intervals[i][1] < s) out.push(intervals[i++]);
+  while (i < intervals.length && intervals[i][0] <= e) {
+    s = Math.min(s, intervals[i][0]);
+    e = Math.max(e, intervals[i][1]);
+    i++;
+  }
+  out.push([s, e]);
+  while (i < intervals.length) out.push(intervals[i++]);
+  return out;
+}`,
+    explain: "Because the input is sorted, one pass is enough: copy everything that ends before the new interval starts, absorb everything that starts at or before the new end by widening the bounds with min and max, then copy the rest. The merged end is a max, so inserting [2,3] into [1,5] keeps 5. Strict `<` on the first loop and `<=` on the second are what make touching intervals merge. O(n) time, no sort needed."
+  },
+  {
+    id: "a216", track: "algo", level: 2, topic: "Trees", type: "mcq",
+    title: "Sorted order from a BST",
+    prompt: "Which traversal of a binary search tree visits its values in ascending order?",
+    options: ["Preorder: node, left, right", "Inorder: left, node, right", "Postorder: left, right, node", "Level order (BFS)"],
+    answer: 1,
+    misses: ["trees.dfs-order", null, "trees.dfs-order", "trees.dfs-order"],
+    explain: "In a BST everything in the left subtree is smaller than the node and everything in the right subtree is larger. Inorder finishes the whole left subtree, then visits the node, then the right subtree, so values come out ascending. Preorder and postorder put the node before or after both subtrees, and level order jumps across branches. A tree is a valid BST only if its inorder sequence is strictly increasing."
+  },
+  {
+    id: "a217", track: "algo", level: 2, topic: "Trees", type: "mcq",
+    title: "Nearest leaf",
+    prompt: "You need the depth of the shallowest leaf in a huge binary tree, and a leaf may sit close to the root. Which approach lets you stop early?",
+    options: ["Preorder DFS going left first, stopping at the first leaf it reaches", "BFS level by level, stopping at the first leaf it meets", "Inorder traversal, stopping at the first leaf it reaches", "Postorder DFS, since children are handled first"],
+    answer: 1,
+    misses: ["trees.wrong-pattern", null, "trees.dfs-order", "trees.dfs-order"],
+    explain: "BFS visits nodes in order of distance from the root, so the first leaf it meets is a shallowest one and it can stop there. A DFS can dive down a long left branch and hit a deep leaf first, so the first leaf it finds proves nothing and it must look at the rest of the tree. The same reasoning makes BFS the tool for fewest hops in any unweighted structure."
+  },
+  {
+    id: "a218", track: "algo", level: 2, topic: "Intervals", type: "mcq",
+    title: "Why sort by start",
+    prompt: "Why does merge intervals start by sorting the intervals by their start value?",
+    options: ["Sorting is only a speed-up: the same single pass gives the right answer on unsorted input", "Sorted intervals never overlap, so you can skip the overlap test", "Once sorted, an interval can only overlap the last merged block, so one pass with a running end is enough", "Sorting removes duplicate intervals"],
+    answer: 2,
+    misses: ["intervals.unsorted", "intervals.wrong-pattern", null, "intervals.wrong-pattern"],
+    explain: "Sorted by start, if the next interval does not reach the block you are building, no later interval can either, since later starts are even larger. So each interval is compared with the last merged block only, and the block's end is updated with a max. Without the sort, an early interval can overlap one you already passed. The sort costs O(n log n), then the sweep is O(n)."
+  },
+  {
+    id: "a219", track: "algo", level: 2, topic: "Intervals", type: "mcq",
+    title: "Cost of merging",
+    prompt: "What is the time complexity of merging n unsorted intervals by sorting by start and then sweeping once?",
+    options: ["O(n)", "O(n log n)", "O(n^2)", "O(n log n) for the sort plus O(n^2) for the sweep"],
+    answer: 1,
+    misses: ["intervals.unsorted", null, "intervals.wrong-pattern", "intervals.wrong-neighbor"],
+    explain: "The sort is O(n log n). The sweep is O(n) because each interval is compared with the last merged block only, never with every earlier one. The sort dominates, so the total is O(n log n). If the input is already sorted by start, the whole job is O(n). The output list takes O(n) extra space."
+  },
+  {
+    id: "a314", track: "algo", level: 3, topic: "Trees", type: "code",
+    title: "Binary tree level order",
+    prompt: "A binary tree is given as nested objects `{ val, left, right }`, with `null` for a missing child. Return its values as an array of arrays, one per level from top to bottom, each ordered left to right. An empty tree returns `[]`.",
+    fn: "levelOrder",
+    starter: `function levelOrder(root) {
+
+}`,
+    hint: "Process one whole level at a time: keep the nodes of the current level in a list, collect their values, and build the next level from their children.",
+    tests: [
+      { args: [null], expected: [], miss: "trees.null-base" },
+      { args: [{ val: 1, left: null, right: null }], expected: [[1]] },
+      { args: [{ val: 3, left: { val: 9, left: null, right: null }, right: { val: 20, left: { val: 15, left: null, right: null }, right: { val: 7, left: null, right: null } } }], expected: [[3], [9, 20], [15, 7]] },
+      { args: [{ val: 1, left: { val: 2, left: { val: 4, left: null, right: null }, right: null }, right: { val: 3, left: null, right: { val: 5, left: null, right: null } } }], expected: [[1], [2, 3], [4, 5]], miss: "trees.wrong-pattern" },
+      { args: [{ val: 1, left: null, right: { val: 2, left: null, right: { val: 3, left: null, right: null } } }], expected: [[1], [2], [3]] },
+      { label: "Complete tree with 32,767 nodes", argsCode: "[(function b(i) { return i > 32767 ? null : { val: i, left: b(2 * i), right: b(2 * i + 1) }; })(1)]", expectedCode: "Array.from({ length: 15 }, (_, k) => Array.from({ length: 2 ** k }, (_, j) => 2 ** k + j))", miss: "trees.wrong-pattern" },
+      { label: "Right leaning chain of 2,000 nodes", argsCode: "[(function () { let n = null; for (let i = 2000; i >= 1; i--) n = { val: i, left: null, right: n }; return n; })()]", expectedCode: "Array.from({ length: 2000 }, (_, i) => [i + 1])" }
+    ],
+    solution: `function levelOrder(root) {
+  if (root === null) return [];
+  const out = [];
+  let level = [root];
+  while (level.length) {
+    out.push(level.map(n => n.val));
+    const next = [];
+    for (const n of level) {
+      if (n.left) next.push(n.left);
+      if (n.right) next.push(n.right);
+    }
+    level = next;
+  }
+  return out;
+}`,
+    explain: "BFS visits nodes closest to the root first. Holding each level as its own list keeps the level boundaries without counting anything: collect the values, then build the next list from the children. With a single queue you get the same result by reading the queue's length before the inner loop. Every node is handled once, O(n) time, and the extra space is the widest level, which can be about half the nodes in a complete tree. It uses no recursion, so a 2,000 deep chain is not a problem."
+  },
+  {
+    id: "a315", track: "algo", level: 3, topic: "Intervals", type: "code",
+    title: "Minimum meeting rooms",
+    prompt: "Each meeting is `[start, end]`. A meeting holds its room from `start` up to but not including `end`, so one meeting ending at 10 and another starting at 10 can share a room (touching endpoints do not conflict here). Return the minimum number of rooms needed so no two meetings in the same room overlap. No meetings means 0 rooms.",
+    fn: "minRooms",
+    starter: `function minRooms(intervals) {
+
+}`,
+    hint: "The answer is the most meetings running at the same moment. Sort the starts and the ends separately, or keep a min heap of end times.",
+    tests: [
+      { args: [[]], expected: 0 },
+      { args: [[[0, 30], [5, 10], [15, 20]]], expected: 2 },
+      { args: [[[7, 10], [2, 4]]], expected: 1 },
+      { args: [[[1, 5], [5, 10]]], expected: 1, miss: "intervals.touching" },
+      { args: [[[1, 5], [1, 5], [1, 5]]], expected: 3 },
+      { args: [[[15, 20], [0, 30], [5, 10]]], expected: 2, miss: "intervals.unsorted" },
+      { args: [[[0, 10], [1, 2], [3, 4], [5, 6]]], expected: 2 },
+      { label: "100,000 meetings", argsCode: "(function () { let x = 12345; const r = () => (x = (x * 48271) % 2147483647); return [Array.from({ length: 100000 }, () => { const s = r() % 1000000; return [s, s + 1 + (r() % 100)]; })]; })()", expectedCode: "(function () { let x = 12345; const r = () => (x = (x * 48271) % 2147483647); const d = new Array(1000200).fill(0); for (let i = 0; i < 100000; i++) { const s = r() % 1000000; d[s]++; d[s + 1 + (r() % 100)]--; } let c = 0, best = 0; for (const v of d) { c += v; if (c > best) best = c; } return best; })()", miss: "intervals.wrong-pattern" }
+    ],
+    solution: `function minRooms(intervals) {
+  const starts = intervals.map(x => x[0]).sort((a, b) => a - b);
+  const ends = intervals.map(x => x[1]).sort((a, b) => a - b);
+  let rooms = 0, j = 0;
+  for (let i = 0; i < starts.length; i++) {
+    if (starts[i] >= ends[j]) j++;
+    else rooms++;
+  }
+  return rooms;
+}`,
+    explain: "The number of rooms equals the largest number of meetings overlapping at one moment. Sort starts and ends separately and sweep: each new start either reuses the room that frees up first (its end is at or before this start) or opens a new room. Because the comparison is `>=`, a meeting that ends at 10 frees its room for one that starts at 10. Note this is the opposite convention from merging touching intervals, so always check what the problem says. O(n log n) for the sorts, O(n) for the sweep. Comparing every pair is O(n^2) and times out on 100,000 meetings."
+  },
+  {
+    id: "a316", track: "algo", level: 3, topic: "Trees", type: "multi",
+    title: "Cost of visiting every node",
+    prompt: "A binary tree has n nodes and height h. Select all true statements about a recursive DFS that visits every node.",
+    options: ["Time is O(n)", "Time is O(h), because it only follows one path", "The recursion stack uses O(h) extra space", "On a chain where every node has one child, the stack grows to depth n", "BFS always needs less extra memory than DFS"],
+    answers: [0, 2, 3],
+    miss: "trees.wrong-pattern",
+    explain: "Visiting every node means doing a constant amount of work n times, so O(n). The stack holds one frame per level of the current path, so O(h): about log n in a balanced tree and n in a chain, where a very long chain can overflow the call stack in JavaScript. DFS does not follow a single path, it explores both children. BFS memory depends on the widest level: O(1) on a chain but about n/2 on a complete tree, so it is not always smaller."
+  },
+  {
+    id: "a317", track: "algo", level: 3, topic: "Intervals", type: "mcq",
+    title: "Rooms with a min heap",
+    prompt: "To find the minimum number of rooms for a set of meetings, you sort them by start and keep a min heap of room end times. What do you do for each meeting?",
+    options: ["Push its end time and never pop; the answer is the number of meetings", "If the smallest end time is at most this start, pop it, then push this meeting's end time; the final heap size is the number of rooms", "Compare its start only with the previous meeting's end", "Pop the largest end time, since the busiest room is the one to reuse"],
+    answer: 1,
+    misses: ["intervals.wrong-pattern", null, "intervals.wrong-neighbor", "intervals.wrong-pattern"],
+    explain: "The smallest end time is the room that frees up first, so it is the only room worth checking. If it is at or before this start, the meeting reuses that room, otherwise it needs a new one. Each step either replaces the top of the heap or grows it by one, so the final size is the room count. Cost is O(n log n). Comparing only with the previous meeting misses rooms that free up earlier than the last one."
+  },
+  {
+    id: "a413", track: "algo", level: 4, topic: "Intervals", type: "mcq",
+    title: "Most jobs without overlap",
+    prompt: "You have n jobs, each `[start, end]`, and want to run as many as possible with no two overlapping (touching endpoints are fine). Which approach is correct?",
+    options: ["Sort by start and take every job that does not overlap the last chosen one", "Sort by end and take every job that starts at or after the last chosen end", "Always take the shortest remaining job", "This needs dynamic programming, because no greedy rule is optimal"],
+    answer: 1,
+    misses: ["intervals.wrong-pattern", null, "intervals.wrong-pattern", "intervals.wrong-pattern"],
+    explain: "The job that finishes first leaves the most room for everything after it, and swapping it into any optimal schedule never makes things worse, so earliest end first is optimal. Start order fails on [0,10],[1,2],[3,4]: it takes [0,10] and gets 1 job instead of 2. Shortest first fails on [0,5],[4,6],[5,10]: the short [4,6] blocks both others, giving 1 instead of 2. Once jobs carry weights, such as profit, the greedy rule stops working and you need DP."
   }
 ];
 
