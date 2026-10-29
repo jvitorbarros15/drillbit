@@ -1907,6 +1907,277 @@ const LESSONS = [
     answer: 1,
     misses: ["intervals.wrong-pattern", null, "intervals.wrong-pattern", "intervals.wrong-pattern"],
     explain: "The job that finishes first leaves the most room for everything after it, and swapping it into any optimal schedule never makes things worse, so earliest end first is optimal. Start order fails on [0,10],[1,2],[3,4]: it takes [0,10] and gets 1 job instead of 2. Shortest first fails on [0,5],[4,6],[5,10]: the short [4,6] blocks both others, giving 1 instead of 2. Once jobs carry weights, such as profit, the greedy rule stops working and you need DP."
+  },
+  // ============================ RECOGNITION QUESTIONS (C2) ============================
+  {
+    id: "a115", track: "algo", level: 1, topic: "Two pointers", type: "mcq",
+    title: "Pair sum on sorted input",
+    prompt: "A sorted array is given and you must decide whether two of its numbers add up to `target`, in O(n) time and O(1) extra memory. Which approach fits?",
+    options: ["Put every number in a Set and look up `target - x` for each", "Check every pair with two nested loops", "Put one pointer at each end and move the one that brings the sum closer to the target", "Binary search for `target - x` starting from every element"],
+    answer: 2,
+    misses: ["two-pointers.wrong-pattern", "two-pointers.wrong-pattern", null, "two-pointers.wrong-pattern"],
+    explain: "On sorted input, a sum that is too small means the left value cannot pair with anything still in range, so move left up; too big means move right down. Each step discards one candidate for good, giving O(n) time with two integers of memory. The Set costs O(n) memory, nested loops cost O(n squared) time and a binary search per element costs O(n log n)."
+  },
+  {
+    id: "a116", track: "algo", level: 1, topic: "Sliding window", type: "mcq",
+    title: "Which pattern: at most two distinct",
+    prompt: "Find the length of the longest substring of `s` that contains at most 2 distinct characters. Which approach fits best?",
+    options: ["Check every start and end pair, rebuilding a set of its characters each time", "Grow a window on the right and move the left edge forward whenever it holds 3 distinct characters", "Sort the characters and count how many are distinct", "Try every subset of characters"],
+    answer: 1,
+    misses: ["sliding-window.recompute", null, "sliding-window.wrong-pattern", "sliding-window.wrong-pattern"],
+    explain: "The question asks for the longest contiguous piece under a rule that only gets harder to meet as the piece grows, which is the sliding window shape. Both edges only move forward, so each index enters and leaves once and the scan is O(n). Rebuilding a set for every pair is cubic, and sorting or subsets throw away the order that makes a substring contiguous."
+  },
+  {
+    id: "a117", track: "algo", level: 1, topic: "Prefix sums", type: "mcq",
+    title: "Prefix sum costs",
+    prompt: "You build a prefix sum array once for an array of n numbers that never changes. What does the build cost, and what does each range sum query cost afterwards?",
+    options: ["O(n log n) to build, O(log n) per query", "O(1) to build, O(n) per query", "O(n) to build, O(1) per query", "O(n) to build, O(n) per query"],
+    answer: 2,
+    misses: ["prefix-sums.wrong-pattern", "prefix-sums.recompute-per-query", null, "prefix-sums.recompute-per-query"],
+    explain: "One pass computes every running total, which is O(n). After that, the sum of `nums[l..r]` is `prefix[r+1] - prefix[l]`, two reads and a subtraction. Doing the O(n) summing again for each query is exactly the cost the prefix array exists to avoid."
+  },
+  {
+    id: "a118", track: "algo", level: 1, topic: "Stacks", type: "mcq",
+    title: "First in, first out",
+    prompt: "A print spooler must print documents in the order they were submitted. Which structure fits?",
+    options: ["A stack", "A queue", "A hash map keyed by document id", "A max heap ordered by page count"],
+    answer: 1,
+    misses: ["stacks.fifo-lifo", null, "stacks.wrong-pattern", "stacks.wrong-pattern"],
+    explain: "The oldest job must come out first, which is first in, first out: a queue. A stack returns the newest item first, which suits undo and nested brackets but would print the last submission first. A hash map has no order and a heap by page count would let big jobs jump the line."
+  },
+  {
+    id: "a119", track: "algo", level: 1, topic: "Binary search", type: "mcq",
+    title: "Which pattern: first price at or above",
+    prompt: "A list of 10 million prices is sorted ascending. You need the first position whose price is at least X. Which approach fits?",
+    options: ["Scan from the start until a price is at least X", "Binary search for the first index whose price is at least X", "Put the prices in a hash set and look up X", "Sort the prices first, then scan"],
+    answer: 1,
+    misses: ["binary-search.wrong-pattern", null, "binary-search.wrong-pattern", "binary-search.wrong-pattern"],
+    explain: "The data is already ordered, so one comparison with the middle price tells you which half can hold the answer. That finds the first qualifying index in about 24 steps for 10 million items. A scan is O(n) per query, a hash set only finds exact values, and X may not be in the list, and sorting an already sorted list is wasted work."
+  },
+  {
+    id: "a120", track: "algo", level: 1, topic: "Sorting", type: "mcq",
+    title: "Default sort",
+    prompt: "What does `[10, 9, 1].sort()` return in JavaScript?",
+    options: ["[1, 9, 10]", "[1, 10, 9]", "[10, 9, 1]", "It throws an error because numbers need a comparator"],
+    answer: 1,
+    misses: ["heaps.default-sort", null, "heaps.forgot-sort", "heaps.default-sort"],
+    explain: "With no comparator, `sort` converts values to strings and compares them, so the strings '1', '10', '9' end up in that order. Pass `(a, b) => a - b` to sort numbers by value. The call does not throw and it does change the array, which is why small single digit tests hide the bug."
+  },
+  {
+    id: "a121", track: "algo", level: 1, topic: "Design a structure", type: "mcq",
+    title: "Reading refreshes recency",
+    prompt: "In an LRU cache you call `get(k)` for a key that is in the cache. What must happen?",
+    options: ["Nothing, a read does not change the cache", "The key becomes the most recently used one", "The key is removed after it is read", "The key becomes the next one to be evicted"],
+    answer: 1,
+    misses: ["design.stale-recency", null, "design.eviction-order", "design.eviction-order"],
+    explain: "A key you just read has been used, so it is now the most recent and the least likely to be evicted. Skipping the refresh means a hot key can be evicted while untouched ones stay. The same applies to a `put` on an existing key."
+  },
+  {
+    id: "a220", track: "algo", level: 2, topic: "Hashing", type: "mcq",
+    title: "Which pattern: first repeat in a stream",
+    prompt: "Strings arrive one at a time and you must report the first one that has already appeared earlier. Which approach fits best?",
+    options: ["Compare each string with every earlier string", "Sort the strings and look for equal neighbors", "Binary search the stream for the repeat", "Keep a Set of strings seen so far and stop at the first one already in it"],
+    answer: 3,
+    misses: ["hashing.wrong-pattern", "hashing.wrong-pattern", "hashing.wrong-pattern", null],
+    explain: "The question is whether you have seen this item before, and a Set answers that in O(1) on average. One pass that checks first and then adds stops at the first repeat, using O(n) memory. Comparing with every earlier string is O(n squared), sorting loses arrival order so you cannot say which repeat came first, and a stream is not sorted for binary search."
+  },
+  {
+    id: "a221", track: "algo", level: 2, topic: "Strings", type: "mcq",
+    title: "Palindrome with punctuation",
+    prompt: "A solution compares `s[i]` and `s[j]`, with `i` moving up from the left and `j` moving down from the right, and returns `false` at the first mismatch. It returns `false` for 'A man, a plan, a canal: Panama', which should count as a palindrome. What is the bug?",
+    options: ["It needs a final check that `i` equals `j`", "It compares raw characters, so spaces, punctuation and letter case make a real palindrome fail", "Both pointers should advance by two characters per step", "It should sort the characters before comparing"],
+    answer: 1,
+    misses: ["two-pointers.wrong-pattern", null, "two-pointers.move-wrong-pointer", "two-pointers.wrong-pattern"],
+    explain: "The pointers must skip anything that is not a letter or digit and compare the lowercase forms. Advance each pointer past junk with an inner loop before comparing. Sorting would destroy the order that defines a palindrome, and skipping characters by two would miss mismatches."
+  },
+  {
+    id: "a222", track: "algo", level: 2, topic: "Greedy scan", type: "mcq",
+    title: "Highest minus lowest",
+    prompt: "To find the best profit from one buy followed by one sell, a solution returns the highest price in the array minus the lowest price. Why is that wrong?",
+    options: ["It is correct: the best trade is always the highest price minus the lowest", "The highest price may come before the lowest, which would mean selling before buying", "It should compare each price only with the previous day's price", "It must sort the prices first"],
+    answer: 1,
+    misses: ["two-pointers.stale-extreme", null, "two-pointers.stale-extreme", "two-pointers.wrong-pattern"],
+    explain: "Buying must happen before selling, so the lowest price only counts for sells that come after it. Keep the lowest price seen so far while scanning, and at each day check the profit of selling today. On [7, 1, 5, 3, 6, 4] the answer is 5, from buying at 1 and selling at 6, and on a falling array the best profit is 0."
+  },
+  {
+    id: "a223", track: "algo", level: 2, topic: "Sliding window", type: "mcq",
+    title: "The window that never shrinks",
+    prompt: "A solution for 'longest substring without repeating characters' adds each new character at the right edge and records `r - l + 1` as the best length, but `l` never moves. On 'abcabc' it returns 6. What is missing?",
+    options: ["A step that moves `l` forward while the window holds a repeat, before recording the length", "Recomputing the distinct count of the whole string at every step", "Resetting `l` to 0 whenever a repeat appears", "Nothing: sliding windows cannot handle repeats, so sort the characters instead"],
+    answer: 0,
+    misses: [null, "sliding-window.recompute", "sliding-window.stale-left", "sliding-window.wrong-pattern"],
+    explain: "When the new character breaks the rule, the left edge has to move forward until the window is valid again. Without that step, stale characters stay in the window and the length only grows. Resetting to 0 or recomputing from scratch discards or repeats work, and sorting destroys the contiguity the question depends on."
+  },
+  {
+    id: "a224", track: "algo", level: 2, topic: "Sliding window", type: "mcq",
+    title: "Left edge moving backward",
+    prompt: "For 'longest substring without repeating characters', a map `last` stores each character's latest index. On a repeat the code sets `l = last.get(c) + 1`, and on 'abba' it returns 3 instead of 2. Which fix is correct and keeps the scan O(n)?",
+    options: ["Clear the map and set `l = r` on every repeat", "Update the map only for characters not seen before", "Set `l = Math.max(l, last.get(c) + 1)`", "After each step, scan the whole window for duplicates"],
+    answer: 2,
+    misses: ["sliding-window.recompute", "sliding-window.stale-left", null, "sliding-window.recompute"],
+    explain: "At the second 'a' in 'abba', its last index is 0 but the window already starts at 2, so `last + 1` would pull the left edge backward and re-admit the repeated 'b'. The max keeps the edge from ever moving back. Clearing the map loses valid characters (it fails on 'dvdf'), not refreshing the map leaves stale indexes and scanning the window every step makes the algorithm slower."
+  },
+  {
+    id: "a225", track: "algo", level: 2, topic: "Prefix sums", type: "mcq",
+    title: "Which pattern: subarray sum with negatives",
+    prompt: "Count the contiguous subarrays whose sum equals `k`. The array can contain negative numbers. Which approach fits?",
+    options: ["Slide a window and shrink it while the sum is above k", "Sort the array and use two pointers", "Keep a running prefix sum and a map counting earlier prefix sums, adding the count for `prefix - k`", "Binary search for `k` in the array"],
+    answer: 2,
+    misses: ["prefix-sums.negatives-break-window", "prefix-sums.wrong-pattern", null, "prefix-sums.wrong-pattern"],
+    explain: "A subarray sums to k exactly when its prefix sum minus an earlier prefix sum equals k, so each position asks how many earlier prefixes equal `prefix - k`. The map answers that in O(1), giving one pass and any signs. A sliding window needs the sum to drop when you shrink it, which negative numbers break, and sorting destroys the order that defines a subarray."
+  },
+  {
+    id: "a226", track: "algo", level: 2, topic: "Monotonic stack", type: "mcq",
+    title: "Which pattern: next warmer day",
+    prompt: "Given daily temperatures, for each day find how many days you must wait until a warmer one. There are up to 100,000 days. Which approach fits?",
+    options: ["For each day, look at every later day until a warmer one appears", "Keep a stack of days still waiting for a warmer day; when a warmer day arrives, pop and resolve every colder day on the stack", "Sort the temperatures and binary search for each one", "Store each temperature in a hash map and look up the next larger value"],
+    answer: 1,
+    misses: ["stacks.wrong-pattern", null, "stacks.wrong-pattern", "stacks.wrong-pattern"],
+    explain: "Each day needs the nearest later day that is warmer, which is the next greater element, and a stack of unresolved days answers it. A day is pushed once and popped once, so the whole scan is O(n). Looking ahead from every day is O(n squared) on a falling sequence, and sorting or hashing temperatures loses their positions."
+  },
+  {
+    id: "a227", track: "algo", level: 2, topic: "Stacks", type: "mcq",
+    title: "Leftover openers",
+    prompt: "A bracket checker scans the whole string without a mismatch, but the stack still holds two openers at the end. What does that mean?",
+    options: ["The string is balanced, leftover openers are fine", "A closer was matched with the wrong type of opener", "The checker should pop the leftovers and then answer true", "The string is not balanced, because those openers never found a closer"],
+    answer: 3,
+    misses: ["stacks.unflushed", "stacks.mismatch-pairing", "stacks.unflushed", null],
+    explain: "An opener still on the stack was never closed, so the string is unbalanced. A wrong type pairing would already have failed at the closer that tried to match it. Always check that the stack is empty after the scan, for example '((' passes every closer check because it has none."
+  },
+  {
+    id: "a228", track: "algo", level: 2, topic: "Binary search", type: "mcq",
+    title: "The loop that never ends",
+    prompt: "A lower bound search uses `lo = 0, hi = n`, loops `while (lo < hi)`, computes `mid = (lo + hi) >> 1`, and does `if (nums[mid] < target) lo = mid; else hi = mid;`. It sometimes never ends. Why?",
+    options: ["The loop should use `lo <= hi`", "`hi` should start at `n + 1`", "`lo = mid` can leave `lo` unchanged when `mid` equals `lo`, so the range stops shrinking; it should be `lo = mid + 1`", "The array must be sorted in descending order"],
+    answer: 2,
+    misses: ["binary-search.off-by-one", "binary-search.off-by-one", null, "binary-search.wrong-pattern"],
+    explain: "With `lo = 0` and `hi = 1`, `mid` is 0, and if `nums[0] < target` then `lo = mid` leaves the range unchanged forever. Since `nums[mid]` is already known to be too small, the next search can start at `mid + 1`, which always shrinks the range. Changing the loop condition or the starting `hi` does not fix the stuck step."
+  },
+  {
+    id: "a229", track: "algo", level: 2, topic: "Selection", type: "mcq",
+    title: "Which pattern: k-th largest",
+    prompt: "You need only the k-th largest value in an unsorted array of 5 million numbers, and you want to avoid sorting everything. Which approach fits?",
+    options: ["Sort the whole array in descending order and read index k - 1", "Binary search the array for the k-th value", "Count each value in a hash map and read the counts in key order", "Keep a min heap of size k, or use quickselect, so the rest of the array is never fully ordered"],
+    answer: 3,
+    misses: ["heaps.sort-everything", "heaps.wrong-pattern", "heaps.wrong-pattern", null],
+    explain: "A min heap that holds the k largest values so far costs O(n log k) time and O(k) memory, and quickselect averages O(n). Both avoid ordering the other values. A full sort does O(n log n) work you do not need, binary search requires sorted input and a hash map does not give you keys in order."
+  },
+  {
+    id: "a230", track: "algo", level: 2, topic: "Dynamic programming", type: "mcq",
+    title: "Which pattern: counting stair climbs",
+    prompt: "Count the ways to climb n stairs taking 1 or 2 steps at a time, for n up to 50. Which approach fits?",
+    options: ["Always take 2 steps when you can", "Plain recursion `ways(n) = ways(n - 1) + ways(n - 2)` with no caching", "Fill `ways[i] = ways[i - 1] + ways[i - 2]` from the bottom, starting with `ways[0] = ways[1] = 1`", "Binary search on the number of ways"],
+    answer: 2,
+    misses: ["dp.wrong-pattern", "dp.too-slow", null, "dp.wrong-pattern"],
+    explain: "The ways to reach step i are the ways to reach i - 1 plus the ways to reach i - 2, so the answer is built from smaller answers that overlap. Computing each state once is O(n). The uncached recursion recomputes the same states over and over and makes far too many calls at n = 50, and a greedy choice does not count ways at all."
+  },
+  {
+    id: "a231", track: "algo", level: 2, topic: "Dynamic programming", type: "mcq",
+    title: "Unreachable amounts",
+    prompt: "A fewest-coins DP fills `dp` with 0 for every amount, then runs `dp[a] = Math.min(dp[a], dp[a - c] + 1)` over the coins. It reports amounts as makeable that are not. What is the fix?",
+    options: ["Set `dp[0] = 1`", "Set `dp[0] = 0` and start every other amount at `Infinity`, so impossible amounts stay impossible", "Make the array length `amount` instead of `amount + 1`", "Loop over the amounts from high to low"],
+    answer: 1,
+    misses: ["dp.base-case", null, "dp.base-case", "dp.state-definition"],
+    explain: "For a minimum, an amount nobody has reached yet must look infinitely expensive so that `min` ignores it. Starting at 0 makes every amount look free. At the end, return -1 when `dp[amount]` is still `Infinity`."
+  },
+  {
+    id: "a232", track: "algo", level: 2, topic: "Design a structure", type: "mcq",
+    title: "Structures behind an LRU cache",
+    prompt: "An LRU cache needs `get` and `put` in O(1), including marking a key as most recently used and evicting the least recently used. Which combination does that?",
+    options: ["An array of entries searched linearly", "A sorted array of entries with binary search", "A hash set of keys only", "A hash map plus a doubly linked list ordered by recency"],
+    answer: 3,
+    misses: ["design.too-slow", "design.too-slow", "design.wrong-pattern", null],
+    explain: "The map finds a node by key in O(1) and the doubly linked list lets you unlink it and move it to the front, or drop the tail, in O(1). Linear search is O(n) and keeping a sorted array means O(n) shifting on each update. A JavaScript `Map` keeps insertion order, so deleting and re-inserting a key can play the list's role."
+  },
+  {
+    id: "a233", track: "algo", level: 2, topic: "Tries", type: "mcq",
+    title: "Word versus prefix",
+    prompt: "A trie has had only the word 'car' inserted. What do an exact word search for 'ca' and a prefix search for 'ca' return?",
+    options: ["true and true", "false and true", "false and false", "true and false"],
+    answer: 1,
+    misses: ["design.prefix-vs-word", null, "design.prefix-vs-word", "design.prefix-vs-word"],
+    explain: "The path c, a exists, so 'ca' is a valid prefix. It is not a stored word because the node for 'a' was never flagged as the end of a word, only the node for 'r' was. Exact search needs both the path and the end flag, while prefix search needs just the path."
+  },
+  {
+    id: "a318", track: "algo", level: 3, topic: "Two pointers", type: "mcq",
+    title: "Container with most water",
+    prompt: "Lines of heights `h` stand at positions 0 to n - 1, and two lines hold an area of `min(height) * distance`. A two pointer solution starts at both ends and always moves the pointer at the shorter line inward. Why is it safe to drop the shorter line?",
+    options: ["The taller line is more likely to be part of the best pair", "Moving the shorter line keeps the width the same", "Pairing the shorter line with any other line in range gives a smaller width and no more height, so it cannot beat the current area", "It guarantees the tallest line is found first"],
+    answer: 2,
+    misses: ["two-pointers.move-wrong-pointer", "two-pointers.move-wrong-pointer", null, "two-pointers.move-wrong-pointer"],
+    explain: "The area is limited by the shorter line, and every other partner it could still have lies closer, so the width only shrinks. That means the shorter line has already given its best result and can be discarded. Moving the taller pointer would keep the same limit while shrinking the width."
+  },
+  {
+    id: "a319", track: "algo", level: 3, topic: "Strings", type: "mcq",
+    title: "Centers of a palindrome",
+    prompt: "Longest palindromic substring by expanding around centers: how many centers must you try for a string of length n, and what is the worst case time?",
+    options: ["n centers, O(n) total", "2n - 1 centers, O(n squared) in the worst case", "2n - 1 centers, O(n log n)", "n centers, O(n squared), which finds all palindromes"],
+    answer: 1,
+    misses: ["two-pointers.even-centers", null, "two-pointers.wrong-pattern", "two-pointers.even-centers"],
+    explain: "A palindrome is centered on a character (n of them) or on the gap between two characters (n - 1 of them), so there are 2n - 1 centers. Expanding one center can take O(n) steps, and a string like 'aaaa' makes most of them long, so the worst case is O(n squared). Trying only n centers misses even length palindromes such as 'bb' in 'cbbd'."
+  },
+  {
+    id: "a320", track: "algo", level: 3, topic: "Sliding window", type: "mcq",
+    title: "Covering repeated characters",
+    prompt: "A window must contain every character of `t` with multiplicity, for example 'aab' needs two a's. How do you check that the window covers `t` in O(1) per move?",
+    options: ["Check that each distinct character of `t` appears at least once in the window", "Track how many of each character is still needed, plus a counter of unmet needs, updating both as characters enter and leave", "Sort the window and `t` and compare them", "Rebuild a count map of the whole window after every move"],
+    answer: 1,
+    misses: ["sliding-window.multiplicity", null, "sliding-window.recompute", "sliding-window.recompute"],
+    explain: "Keep a need count per character and a single number for how many characters are still short. A needed copy entering the window lowers the count, and one leaving raises it, so 'covered' is just 'unmet equals 0'. Checking presence only misses duplicates, and sorting or rebuilding the map on each move costs O(window size) every step."
+  },
+  {
+    id: "a321", track: "algo", level: 3, topic: "Prefix sums", type: "mcq",
+    title: "Seeding the prefix map",
+    prompt: "Counting subarrays that sum to k uses a map of prefix sum counts: for each new prefix, add `map[prefix - k]`, then record the prefix. What should the map hold before the loop starts?",
+    options: ["An empty map", "A map holding `{0: 1}`", "A map holding `{k: 1}`", "A map holding the first element"],
+    answer: 1,
+    misses: ["prefix-sums.missing-zero-seed", null, "prefix-sums.missing-zero-seed", "prefix-sums.missing-zero-seed"],
+    explain: "The empty prefix before the first element has sum 0 and occurs once. Without that seed, a subarray starting at index 0 never finds its partner prefix: for [3] with k = 3 the prefix is 3, and 3 - 3 = 0 must already be in the map."
+  },
+  {
+    id: "a322", track: "algo", level: 3, topic: "Monotonic deque", type: "mcq",
+    title: "Why the deque front is checked",
+    prompt: "In the sliding window maximum with a monotonic deque of indices, each step also checks whether the front index is at most `i - k`. Why?",
+    options: ["It keeps the deque decreasing by removing smaller values", "The front index is the oldest one, and it must be removed once it slides out of the window", "It counts how many windows are complete", "It is unnecessary, since smaller values are already popped from the back"],
+    answer: 1,
+    misses: ["stacks.wrong-pattern", null, "stacks.wrong-pattern", "stacks.expired-front"],
+    explain: "Popping from the back keeps values in decreasing order, but it does not notice that the front value may be too old. Indices increase from front to back, so the front expires first, and once it is at most `i - k` it is outside the window and cannot be the maximum. Use a head index rather than `Array.shift` so each removal stays O(1)."
+  },
+  {
+    id: "a323", track: "algo", level: 3, topic: "Binary search", type: "mcq",
+    title: "Cost of searching the answer",
+    prompt: "You binary search a capacity between 1 and 10^9, and each feasibility check scans an array of 100,000 numbers. About how many operations does this take overall?",
+    options: ["About 10^14, since the range has 10^9 values and a check scans 10^5", "About 3 million: roughly 30 checks of 100,000 steps each", "About 10^9, one step per value in the range", "About 100,000, since one check settles it"],
+    answer: 1,
+    misses: ["binary-search.answer-space", null, "binary-search.log-miscount", "binary-search.wrong-pattern"],
+    explain: "Halving a range of 10^9 values takes about 30 steps, since 2^30 is about 10^9, and each step runs one O(n) check. The total is O(n log range), about 3 million operations here. Trying every value one by one would be around 10^14 operations."
+  },
+  {
+    id: "a324", track: "algo", level: 3, topic: "Dynamic programming", type: "mcq",
+    title: "What dp[i] means",
+    prompt: "House robber uses `dp[i] = max(dp[i - 1], dp[i - 2] + nums[i])`. What must `dp[i]` mean for this recurrence to be right?",
+    options: ["The most you can take if house i is robbed", "The number of ways to choose houses 0 to i", "The most you can take from houses 0 to i, whether or not house i is robbed", "The cash in house i"],
+    answer: 2,
+    misses: ["dp.state-definition", "dp.state-definition", null, "dp.state-definition"],
+    explain: "The first term, `dp[i - 1]`, is the case where house i is skipped, and the second, `dp[i - 2] + nums[i]`, is the case where it is robbed. The max of both only makes sense if `dp[i]` is the best total over the first i + 1 houses. Writing the meaning of a state in one sentence before the transition is what keeps the recurrence honest."
+  },
+  {
+    id: "a325", track: "algo", level: 3, topic: "Tries", type: "mcq",
+    title: "Cost of a trie insert",
+    prompt: "A trie stores n words of average length m. About how many steps does inserting one more word take?",
+    options: ["O(n * m), because it is compared with every stored word", "O(m), one step per character no matter how many words are stored", "O(log n), like a balanced tree", "O(1), since it is a hash lookup"],
+    answer: 1,
+    misses: ["design.too-slow", null, "design.wrong-pattern", "design.wrong-pattern"],
+    explain: "Insertion walks or creates one node per character, so the cost depends on the word's length and not on how many words are stored. That is why a trie reaches a prefix in O(length). Memory is the price: each node can hold a map or array of children."
+  },
+  {
+    id: "a414", track: "algo", level: 4, topic: "Dynamic programming", type: "mcq",
+    title: "Faster longest increasing subsequence",
+    prompt: "The O(n squared) DP for the longest increasing subsequence is too slow for 200,000 numbers. Which idea gets it to O(n log n)?",
+    options: ["Sort the numbers and count the distinct ones", "Memoize the O(n squared) recurrence with a Map", "Greedily extend the subsequence with the next larger number", "Keep an array where entry k is the smallest possible last value of an increasing subsequence of length k + 1, and binary search it for each number"],
+    answer: 3,
+    misses: ["dp.wrong-pattern", "dp.too-slow", "dp.wrong-pattern", null],
+    explain: "That array stays sorted, so each number replaces the first entry that is at least as large (or extends the array) found by binary search, costing O(log n). The final length of the array is the answer. Memoizing the quadratic recurrence still has n states with n transitions each, and sorting or a greedy extension changes the problem."
   }
 ];
 
