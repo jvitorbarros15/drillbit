@@ -407,6 +407,7 @@
         <button class="link" data-act="import">Import progress</button>
         <button class="link danger" data-act="reset">Reset</button>
         <span class="muted small">Progress lives in this browser. Export it to move devices.</span>
+        <span class="legal-links"><a class="link" href="/terms">Terms</a><a class="link" href="/privacy">Privacy</a><a class="link" href="/refund">Refunds</a></span>
       </footer>`;
     notice = null;
     const hm = document.querySelector(".heatmap");
@@ -462,6 +463,7 @@
       <section class="panel">
         <div class="panel-head"><h3>Refunds</h3></div>
         <p class="muted">Full refund within 7 days of purchase if you have completed fewer than ${FREE_SESSIONS} sessions.</p>
+        <p class="muted small"><a class="link" href="/terms">Terms</a> <a class="link" href="/privacy">Privacy</a> <a class="link" href="/refund">Refunds</a></p>
       </section>
       <div class="hero-cta">${active ? buy : button}</div>`;
   }
@@ -488,7 +490,7 @@
     unlockMsg = "Payment received. Unlocking your pass.";
     const t0 = Date.now();
     const tick = async () => {
-      if (await refreshAccess()) { unlockMsg = null; toast("Sprint Pass unlocked."); if (!run) route(); return; }
+      if (await refreshAccess()) { ANALYTICS.track("purchase_completed"); unlockMsg = null; toast("Sprint Pass unlocked."); if (!run) route(); return; }
       if (Date.now() - t0 >= 30000) { unlockMsg = "Your payment is being confirmed. Refresh in a minute."; if (!run) route(); return; }
       setTimeout(tick, 2000);
     };
@@ -678,6 +680,7 @@
     clearHash();
     run = { mode: "diagnostic", label: "Diagnostic", entries: qEntries(CORE.buildDiagnostic(ctx)), idx: 0, results: [], answers: [] };
     if (!run.entries.length) { run = null; toast("Nothing to test yet."); return; }
+    ANALYTICS.track("diagnostic_started");
     renderRun();
   }
 
@@ -963,7 +966,11 @@
     const durationMs = Date.now() - cur.startedAt;
     if (run.mode === "diagnostic") run.answers.push({ lessonId: item.id, correct, tag, durationMs });
     else {
+      const pid = CORE.patternOf(item, ctx);
+      const hadMastery = !!(S.patterns[pid] && S.patterns[pid].mastered);
       CORE.recordAttempt(S, ctx, today(), { lessonId: item.id, correct, tag, hinted: cur.hinted, reviewOf: entry.kind === "review" ? entry.tag : undefined });
+      if (correct && entry.kind === "review") ANALYTICS.track("review_item_passed", { tag: entry.tag });
+      if (!hadMastery && S.patterns[pid] && S.patterns[pid].mastered) ANALYTICS.track("pattern_mastered", { pattern: pid });
       AUTH.logAttempt({ item_id: item.id, correct, misconception_tag: tag, duration_ms: durationMs });
     }
     run.results.push({ correct });
@@ -1017,6 +1024,7 @@
     const t = today();
     if (run.mode === "diagnostic") {
       CORE.recordDiagnostic(S, ctx, t, run.answers);
+      ANALYTICS.track("diagnostic_completed", { correct: run.answers.filter(a => a.correct).length, total: run.answers.length });
       run.answers.forEach(a => AUTH.logAttempt({ item_id: a.lessonId, correct: a.correct, misconception_tag: a.tag, duration_ms: a.durationMs }));
       save();
       renderDiagResults();
@@ -1032,6 +1040,7 @@
       if (S.streak % 7 === 0 && S.freezes < MAX_FREEZES) { S.freezes++; freezeEarned = true; }
       S.days[t] = Object.assign({ answered: 0, correct: 0 }, S.days[t], { done: true });
       save();
+      ANALYTICS.track("session_completed", { correct: run.results.filter(r => r.correct).length, phase: CORE.schedule(S, sctx, t).phase });
     }
     renderSummary(streakUp, freezeEarned);
   }
@@ -1153,6 +1162,7 @@
           try { localStorage.setItem(RETURN_KEY, "#pass"); } catch (err) { /* ignore */ }
           go("#account");
         } else {
+          ANALYTICS.track("checkout_started");
           AUTH.checkout().then(r => { if (r && r.url) location.href = r.url; else toast("Couldn't start checkout. Try again."); });
         }
         break;
@@ -1239,6 +1249,7 @@
   };
   AUTH.onChange(async what => {
     renderChips();
+    if (what === "user" && AUTH.user()) ANALYTICS.identify(AUTH.user().id);
     if (what !== "synced") return;
     await refreshAccess();
     const back = takeReturn();

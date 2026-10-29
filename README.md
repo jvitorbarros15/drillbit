@@ -89,6 +89,8 @@ Option B, GitHub: push this folder to a repo, then on vercel.com click Add New >
 - `scripts/build.js`: builds the free `public/` bundle
 - `.env.example`: server environment variable names
 - `config.example.js`: template for `config.js`
+- `analytics.js`: optional PostHog events, off without a key or when Do Not Track is on
+- `terms.html`, `privacy.html`, `refund.html`: legal pages
 - `supabase/`: the migration and the test bootstrap for it
 - `app.js`: the UI
 - `styles.css`, `learn.css`: styles
@@ -113,3 +115,11 @@ Then run `npm test`. CI runs it on every push and pull request. It validates eve
 ```bash
 npm test
 ```
+
+## Legal pages
+
+`terms.html`, `privacy.html` and `refund.html` are templates, not legal advice. Fill in the bracketed placeholders (`[Operator legal name]`, `[Support email]`, `[Mailing address]`, `[Governing law jurisdiction]`) and have them reviewed before launch.
+
+## Analytics
+
+Set `POSTHOG_KEY` (and optionally `POSTHOG_HOST`) at build time for the browser events and in the server environment for the webhook events. Without a key every call is a no-op.

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy policy | Drillbit</title>
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="nav-left">
+      <a class="logo" href="/"><span class="logo-mark">//</span> drill<span>bit</span></a>
+    </div>
+    <div class="chips"><a class="chip" href="/">Back to the app</a></div>
+  </header>
+  <main class="legal">
+    <h1>Privacy policy</h1>
+    <p class="muted">Last updated 2026-10-29</p>
+    <h2>Who we are</h2>
+    <p>Drillbit is operated by [Operator legal name] ([Mailing address]). Contact: [Support email].</p>
+
+    <h2>What is stored and where</h2>
+    <ul>
+      <li><b>On your device.</b> Your progress is saved in your browser's localStorage. Without an account, nothing else leaves your device except the analytics events listed below.</li>
+      <li><b>If you sign in.</b> Your account data is stored in Supabase: your email, your progress, your answer attempts (with the misconception tag and how long you took), your review queue, your interview date, and your purchase records (entitlements).</li>
+      <li><b>Payments.</b> Payments are handled by Stripe. Drillbit never sees or stores your card number. We receive the payment and checkout session ids.</li>
+      <li><b>Reminder emails.</b> If reminder emails are enabled, they are sent through Resend.</li>
+      <li><b>No ad trackers, and we do not sell your data.</b></li>
+    </ul>
+
+    <h2>Product analytics</h2>
+    <p>We use PostHog to see how the product is used. These are the only events we send:</p>
+    <ul>
+      <li>diagnostic_started, diagnostic_completed (correct count and total)</li>
+      <li>session_completed (correct count and phase)</li>
+      <li>review_item_passed (misconception tag)</li>
+      <li>pattern_mastered (pattern id)</li>
+      <li>checkout_started, purchase_completed</li>
+      <li>From our server: purchase_completed_server and refund</li>
+    </ul>
+    <p>No answer text or code is sent. If you are signed in, events are linked to your account id, not your email. PostHog also records page views. Session recording and autocapture are off. If your browser sends Do Not Track, analytics is switched off entirely.</p>
+
+    <h2>Cookies and storage</h2>
+    <p>Drillbit uses your browser's localStorage for your progress and analytics id, and the Supabase auth session if you sign in.</p>
+
+    <h2>Retention, deletion and export</h2>
+    <ul>
+      <li>To export your progress, use the Export progress button at the bottom of the home page.</li>
+      <li>To delete your account and its data, email [Support email] from the address you signed in with.</li>
+    </ul>
+
+    <h2>Contact</h2>
+    <p>[Operator legal name], [Mailing address], [Support email].</p>
+
+    <footer class="foot">
+      <a class="link" href="/terms">Terms</a>
+      <a class="link" href="/privacy">Privacy</a>
+      <a class="link" href="/refund">Refunds</a>
+    </footer>
+  </main>
+</body>
+</html>

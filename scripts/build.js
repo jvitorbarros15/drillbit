@@ -3,7 +3,7 @@ const path = require("node:path");
 const { split } = require("../api/_lib/split.js");
 
 const ROOT = path.join(__dirname, "..");
-const COPY = ["index.html", "styles.css", "learn.css", "viz.js", "patterns.js", "core.js", "auth.js", "app.js"];
+const COPY = ["index.html", "styles.css", "learn.css", "viz.js", "patterns.js", "core.js", "auth.js", "analytics.js", "app.js", "terms.html", "privacy.html", "refund.html"];
 
 function build(out = process.env.BUILD_OUT || process.argv[2] || path.join(ROOT, "public"), env = process.env) {
   out = path.resolve(out);
@@ -23,10 +23,10 @@ function build(out = process.env.BUILD_OUT || process.argv[2] || path.join(ROOT,
     .replace(/\s*<script src="guides.js"><\/script>/, "");
   fs.writeFileSync(path.join(out, "index.html"), html);
 
-  if (env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
-    fs.writeFileSync(path.join(out, "config.js"),
-      `window.DRILLBIT_CONFIG = ${JSON.stringify({ supabaseUrl: env.SUPABASE_URL, supabaseAnonKey: env.SUPABASE_ANON_KEY })};\n`);
-  }
+  const config = {};
+  if (env.SUPABASE_URL && env.SUPABASE_ANON_KEY) Object.assign(config, { supabaseUrl: env.SUPABASE_URL, supabaseAnonKey: env.SUPABASE_ANON_KEY });
+  if (env.POSTHOG_KEY) Object.assign(config, { posthogKey: env.POSTHOG_KEY }, env.POSTHOG_HOST && { posthogHost: env.POSTHOG_HOST });
+  if (Object.keys(config).length) fs.writeFileSync(path.join(out, "config.js"), `window.DRILLBIT_CONFIG = ${JSON.stringify(config)};\n`);
   return { out, free: s.freeLessons.length, paid: s.paidLessons.length };
 }
 

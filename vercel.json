@@ -11,7 +11,7 @@
       ]
     },
     {
-      "source": "/(app|content-free|patterns|core|viz|auth|config).js",
+      "source": "/(app|content-free|patterns|core|viz|auth|analytics|config).js",
       "headers": [
         {
           "key": "Cache-Control",

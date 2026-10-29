@@ -37,9 +37,14 @@ const fakeDb = (over = {}) => {
     ...over
   };
 };
-const deps = (db, createSession) => ({
+const fakeAnalytics = (over = {}) => {
+  const calls = [];
+  return { calls, capture: async (...a) => { calls.push(a); }, ...over };
+};
+const deps = (db, createSession, analytics = fakeAnalytics()) => ({
   stripe: { webhooks: real.webhooks, checkout: { sessions: { create: createSession || (async () => ({ url: "https://checkout.test/s" })) } } },
   db,
+  analytics,
   config
 });
 
@@ -76,13 +81,13 @@ test("checkout: a Stripe failure returns 500", async () => {
   assert.strictEqual((await call(h, makeReq("POST", { headers: { authorization: "Bearer good" } }))).statusCode, 500);
 });
 
-const send = async (type, object, { db = fakeDb(), secret = SECRET, chunks } = {}) => {
+const send = async (type, object, { db = fakeDb(), secret = SECRET, chunks, analytics = fakeAnalytics() } = {}) => {
   const payload = JSON.stringify({ id: "evt_1", object: "event", type, data: { object } });
   const header = real.webhooks.generateTestHeaderString({ payload, secret });
   const buf = Buffer.from(payload);
   const req = makeReq("POST", { headers: { "stripe-signature": header }, chunks: chunks ? chunks(buf) : [buf] });
-  const res = await call(webhook.create(deps(db)), req);
-  return { res, db };
+  const res = await call(webhook.create(deps(db, undefined, analytics)), req);
+  return { res, db, analytics };
 };
 const session = over => ({ id: "cs_1", payment_status: "paid", payment_intent: "pi_1", client_reference_id: "u1", metadata: { user_id: "u1" }, ...over });
 
@@ -141,6 +146,30 @@ test("webhook: a full refund revokes and a partial refund does not", async () =>
 test("webhook: a dispute revokes the payment intent", async () => {
   const { db } = await send("charge.dispute.created", { id: "dp_1", payment_intent: "pi_9" });
   assert.deepStrictEqual(db.calls.revoke, ["pi_9"]);
+});
+
+test("webhook: a full refund and a dispute send the refund event", async () => {
+  const full = await send("charge.refunded", { id: "ch_1", refunded: true, payment_intent: "pi_1" });
+  assert.deepStrictEqual(full.analytics.calls, [["refund", "pi_1", { kind: "refund" }]]);
+  const partial = await send("charge.refunded", { id: "ch_1", refunded: false, payment_intent: "pi_1" });
+  assert.strictEqual(partial.analytics.calls.length, 0);
+  const dispute = await send("charge.dispute.created", { id: "dp_1", payment_intent: "pi_9" });
+  assert.deepStrictEqual(dispute.analytics.calls, [["refund", "pi_9", { kind: "dispute" }]]);
+});
+
+test("webhook: a grant sends purchase_completed_server for the user", async () => {
+  const { analytics } = await send("checkout.session.completed", session());
+  assert.deepStrictEqual(analytics.calls, [["purchase_completed_server", "u1", { product: "sprint_30" }]]);
+});
+
+test("webhook: still returns 200 when analytics throws or rejects", async () => {
+  for (const capture of [async () => { throw new Error("down"); }, () => { throw new Error("sync"); }]) {
+    const analytics = fakeAnalytics({ capture });
+    assert.strictEqual((await send("charge.refunded", { refunded: true, payment_intent: "pi_1" }, { analytics })).res.statusCode, 200);
+    const grant = await send("checkout.session.completed", session(), { analytics });
+    assert.strictEqual(grant.res.statusCode, 200);
+    assert.strictEqual(grant.db.calls.grant.length, 1);
+  }
 });
 
 test("webhook: an unknown event type returns 200", async () => {

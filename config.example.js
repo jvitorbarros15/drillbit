@@ -1,1 +1,1 @@
-window.DRILLBIT_CONFIG = { supabaseUrl: "", supabaseAnonKey: "" };
+window.DRILLBIT_CONFIG = { supabaseUrl: "", supabaseAnonKey: "", posthogKey: "", posthogHost: "" };

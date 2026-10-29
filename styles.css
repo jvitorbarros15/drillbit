@@ -361,3 +361,11 @@ pre.sol code { background: none; border: 0; padding: 0; font-size: inherit; }
   .touch-only { display: inline-flex; }
   #code, .num-form input { font-size: 16px; }
 }
+
+.legal-links { display: flex; gap: 16px; }
+.legal { max-width: 720px; }
+.legal h2 { font-size: 1.1rem; margin: 28px 0 8px; }
+.legal p, .legal li { color: var(--muted); }
+.legal ul { padding-left: 20px; }
+.legal a { color: var(--text); }
+.legal .foot { margin-top: 32px; }

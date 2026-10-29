@@ -3,7 +3,8 @@ const { readRaw, send } = require("./_lib/http");
 const PRODUCT = "sprint_30";
 const DAYS = 30;
 
-const create = ({ stripe, db, config }) => async (req, res) => {
+const create = ({ stripe, db, config, analytics }) => async (req, res) => {
+  const track = (event, distinctId, props) => Promise.resolve().then(() => analytics.capture(event, distinctId, props)).catch(() => {});
   if (req.method !== "POST") { res.setHeader("Allow", "POST"); return send(res, 405, { error: "Method not allowed" }); }
   let event;
   try {
@@ -21,16 +22,23 @@ const create = ({ stripe, db, config }) => async (req, res) => {
         const userId = (obj.metadata && obj.metadata.user_id) || obj.client_reference_id;
         if (!userId) { console.error("paid session without a user", obj.id); break; }
         await db.grant(userId, obj.id, obj.payment_intent, PRODUCT, DAYS);
+        await track("purchase_completed_server", userId, { product: PRODUCT });
         break;
       }
       case "checkout.session.async_payment_failed":
         console.error("async payment failed", obj.id);
         break;
       case "charge.refunded":
-        if (obj.refunded === true && obj.payment_intent) await db.revoke(obj.payment_intent);
+        if (obj.refunded === true && obj.payment_intent) {
+          await db.revoke(obj.payment_intent);
+          await track("refund", (obj.metadata && obj.metadata.user_id) || obj.payment_intent, { kind: "refund" });
+        }
         break;
       case "charge.dispute.created":
-        if (obj.payment_intent) await db.revoke(obj.payment_intent);
+        if (obj.payment_intent) {
+          await db.revoke(obj.payment_intent);
+          await track("refund", (obj.metadata && obj.metadata.user_id) || obj.payment_intent, { kind: "dispute" });
+        }
         break;
     }
     return send(res, 200, { received: true });

@@ -1,5 +1,6 @@
 const Stripe = require("stripe");
 const { createClient } = require("@supabase/supabase-js");
+const { createAnalytics } = require("./analytics");
 
 function buildDeps(env = process.env) {
   const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2026-09-30.endive" });
@@ -31,6 +32,7 @@ function buildDeps(env = process.env) {
   };
   return {
     stripe, db,
+    analytics: createAnalytics({ key: env.POSTHOG_KEY, host: env.POSTHOG_HOST }),
     config: { webhookSecret: env.STRIPE_WEBHOOK_SECRET, priceSprint: env.STRIPE_PRICE_SPRINT, appUrl: env.APP_URL }
   };
 }
