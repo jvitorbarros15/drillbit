@@ -14,6 +14,7 @@ test.before(async () => {
   await db.exec(read("supabase/test/auth-stub.sql"));
   await db.exec(read("supabase/migrations/20261023000000_init.sql"));
   await db.exec(read("supabase/migrations/20261029000000_entitlement_functions.sql"));
+  await db.exec(read("supabase/migrations/20261029010000_reminders.sql"));
   await db.exec(`
     insert into auth.users (id, email) values ('${A}', 'a@x.test'), ('${B}', 'b@x.test');
     insert into public.attempts (user_id, item_id, correct) values ('${A}', 'q1', true), ('${B}', 'q2', false);
@@ -85,6 +86,18 @@ test("A cannot insert, update or delete entitlements, even their own", async () 
   await assert.rejects(db.query(`insert into public.entitlements (user_id, product, starts_at, expires_at, stripe_session_id) values ('${A}', 'pro', now(), now() + interval '1 day', 'cs_new')`), /row-level security|permission denied/);
   assert.strictEqual((await db.query("update public.entitlements set expires_at = now() + interval '999 days'")).affectedRows, 0);
   assert.strictEqual((await db.query("delete from public.entitlements")).affectedRows, 0);
+});
+
+test("A can set their own reminder fields but not B's", async () => {
+  await as(A);
+  const own = await db.query(`update public.profiles set reminders_enabled = true, reminder_hour = 8, timezone = 'America/New_York' where id = '${A}'`);
+  assert.strictEqual(own.affectedRows, 1);
+  const other = await db.query(`update public.profiles set reminders_enabled = true, reminder_hour = 8, timezone = 'UTC' where id = '${B}'`);
+  assert.strictEqual(other.affectedRows, 0);
+  await assert.rejects(db.query(`update public.profiles set reminder_hour = 24 where id = '${A}'`), /check/);
+  await db.exec("reset role");
+  const r = await rows(`select id, reminders_enabled, reminder_hour from public.profiles order by id`);
+  assert.deepStrictEqual(r, [{ id: A, reminders_enabled: true, reminder_hour: 8 }, { id: B, reminders_enabled: false, reminder_hour: null }]);
 });
 
 test("anon sees nothing from any table", async () => {

@@ -203,6 +203,28 @@
       </div>
       <div class="auth-row"><button class="btn ghost" data-act="auth-google">Continue with Google</button></div>
     </div>`;
+  let reminder = null;
+  const browserZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; } };
+  const hourLabel = h => `${h}:00`;
+  const reminderPanel = () => {
+    const r = reminder || { enabled: false, hour: 8 };
+    const hour = r.hour == null ? 8 : r.hour;
+    return `
+      <section class="panel">
+        <div class="panel-head"><h3>Daily reminder</h3></div>
+        <div class="auth-row">
+          <label><input type="checkbox" id="rem-on" ${r.enabled ? "checked" : ""} /> Email me a reminder</label>
+          <select id="rem-hour" class="date-input" aria-label="Reminder hour">${Array.from({ length: 16 }, (_, i) => i + 7).map(h => `<option value="${h}" ${h === hour ? "selected" : ""}>${hourLabel(h)}</option>`).join("")}</select>
+          <span class="muted small">${esc(browserZone())}</span>
+          <button class="btn primary" data-act="save-reminder">Save</button>
+        </div>
+        <p class="muted small">One email a day at most. Unsubscribe from any email.</p>
+      </section>`;
+  };
+  async function loadReminder() {
+    reminder = await AUTH.loadReminder();
+    if (location.hash === "#account" && AUTH.user()) renderAccount();
+  }
   function renderAccount() {
     run = null; cur = null;
     setNav("");
@@ -214,7 +236,7 @@
         <h1>${u ? "You're signed in." : "Sign in."}</h1>
         ${u ? `<p class="muted">${esc(u.email || "")}. Your progress syncs to this account.</p>` : ""}
       </section>
-      ${u ? "" : authBox()}`;
+      ${u ? reminderPanel() : authBox()}`;
   }
   const flameSvg = () => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-6 1-9.5z"/></svg>`;
   const iceSvg = () => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 2 3-2M9 20l3-2 3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
@@ -1157,6 +1179,11 @@
       case "concept-next": conceptNext(); break;
       case "sign-in": go("#account"); break;
       case "pass": go("#pass"); break;
+      case "save-reminder": {
+        const next = { enabled: $("#rem-on").checked, hour: Number($("#rem-hour").value), timezone: browserZone() };
+        AUTH.saveReminder(next).then(r => { if (r) { reminder = next; toast("Reminder saved."); } else toast("Couldn't save the reminder. Try again."); });
+        break;
+      }
       case "buy":
         if (!AUTH.user()) {
           try { localStorage.setItem(RETURN_KEY, "#pass"); } catch (err) { /* ignore */ }
@@ -1249,7 +1276,10 @@
   };
   AUTH.onChange(async what => {
     renderChips();
-    if (what === "user" && AUTH.user()) ANALYTICS.identify(AUTH.user().id);
+    if (what === "user") {
+      if (AUTH.user()) { ANALYTICS.identify(AUTH.user().id); loadReminder(); }
+      else reminder = null;
+    }
     if (what !== "synced") return;
     await refreshAccess();
     const back = takeReturn();

@@ -1,6 +1,9 @@
 const Stripe = require("stripe");
 const { createClient } = require("@supabase/supabase-js");
 const { createAnalytics } = require("./analytics");
+const { createSendEmail } = require("./email");
+const { createUnsubscribe } = require("./unsubscribe");
+const { contentFor } = require("./reminder");
 
 function buildDeps(env = process.env) {
   const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2026-09-30.endive" });
@@ -21,6 +24,25 @@ function buildDeps(env = process.env) {
     async revoke(paymentIntent) {
       return rpc("revoke_entitlement", { p_payment_intent: paymentIntent });
     },
+    async reminderCandidates() {
+      const { data, error } = await sb.from("profiles").select("id, progress, reminder_hour, timezone, last_reminder_on")
+        .eq("reminders_enabled", true).not("reminder_hour", "is", null);
+      if (error) throw error;
+      return data || [];
+    },
+    async emailOf(userId) {
+      const { data, error } = await sb.auth.admin.getUserById(userId);
+      if (error) throw error;
+      return data && data.user ? data.user.email : null;
+    },
+    async markReminded(userId, date) {
+      const { error } = await sb.from("profiles").update({ last_reminder_on: date }).eq("id", userId);
+      if (error) throw error;
+    },
+    async disableReminders(userId) {
+      const { error } = await sb.from("profiles").update({ reminders_enabled: false }).eq("id", userId);
+      if (error) throw error;
+    },
     async access(userId) {
       const active = !!(await rpc("has_access", { p_user: userId }));
       if (!active) return { active: false, expiresAt: null };
@@ -33,7 +55,10 @@ function buildDeps(env = process.env) {
   return {
     stripe, db,
     analytics: createAnalytics({ key: env.POSTHOG_KEY, host: env.POSTHOG_HOST }),
-    config: { webhookSecret: env.STRIPE_WEBHOOK_SECRET, priceSprint: env.STRIPE_PRICE_SPRINT, appUrl: env.APP_URL }
+    sendEmail: createSendEmail({ key: env.RESEND_API_KEY, from: env.RESEND_FROM }),
+    unsubscribe: createUnsubscribe(env.UNSUBSCRIBE_SECRET),
+    contentFor,
+    config: { webhookSecret: env.STRIPE_WEBHOOK_SECRET, priceSprint: env.STRIPE_PRICE_SPRINT, appUrl: env.APP_URL, cronSecret: env.CRON_SECRET }
   };
 }
 

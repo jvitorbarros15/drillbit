@@ -8,7 +8,7 @@
       access: none, content: none, checkout: none,
       enabled: false, ready: Promise.resolve(), user: () => null, attach() {}, onChange() {},
       signInWithEmail: none, signInWithGoogle: none, signOut: none, pull: none, push: none,
-      logAttempt: none, syncQueue: none, sync: none
+      logAttempt: none, syncQueue: none, sync: none, loadReminder: none, saveReminder: none
     };
     return;
   }
@@ -133,6 +133,16 @@
         if (s) guard(() => pushNow(s));
       }, PUSH_DELAY);
     },
+    loadReminder: () => guard(async () => {
+      if (!user) return null;
+      const r = check(await client.from("profiles").select("reminders_enabled, reminder_hour, timezone").eq("id", user.id).maybeSingle());
+      return r.data ? { enabled: r.data.reminders_enabled, hour: r.data.reminder_hour, timezone: r.data.timezone } : null;
+    }),
+    saveReminder: ({ enabled, hour, timezone }) => guard(async () => {
+      if (!user) return null;
+      check(await client.from("profiles").update({ reminders_enabled: enabled, reminder_hour: hour, timezone }).eq("id", user.id));
+      return { ok: true };
+    }),
     logAttempt: row => guard(async () => { if (user) check(await client.from("attempts").insert(row)); }),
     syncQueue: misses => guard(async () => { if (user) await queueNow(misses); })
   };

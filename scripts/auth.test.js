@@ -214,3 +214,18 @@ test("disabled AUTH resolves access, content and checkout to null", async () => 
   const { AUTH } = setup({});
   assert.deepStrictEqual([await AUTH.access(), await AUTH.content(), await AUTH.checkout()], [null, null, null]);
 });
+
+test("saveReminder updates the own profile row with the reminder fields", async () => {
+  const t = setup({ config: CFG });
+  await t.signIn();
+  const r = await t.AUTH.saveReminder({ enabled: true, hour: 8, timezone: "America/New_York" });
+  assert.deepStrictEqual(json(r), { ok: true });
+  const up = ops(t.calls, "update").filter(c => c.table === "profiles").pop();
+  assert.deepStrictEqual(json(up.args), [{ reminders_enabled: true, reminder_hour: 8, timezone: "America/New_York" }]);
+  assert.deepStrictEqual(json(up.filters), [["eq", "id", "u1"]]);
+});
+
+test("saveReminder resolves null when signed out", async () => {
+  const t = setup({ config: CFG });
+  assert.strictEqual(await t.AUTH.saveReminder({ enabled: true, hour: 8, timezone: "UTC" }), null);
+});

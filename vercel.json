@@ -21,7 +21,8 @@
     }
   ],
   "functions": {
-    "api/content.js": { "includeFiles": "{data.js,guides.js,patterns.js,core.js}" }
+    "api/content.js": { "includeFiles": "{data.js,guides.js,patterns.js,core.js}" },
+    "api/cron-reminders.js": { "includeFiles": "{data.js,guides.js,patterns.js,core.js}" }
   },
   "buildCommand": "npm run build",
   "outputDirectory": "public"

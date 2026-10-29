@@ -1,0 +1,221 @@
+const test = require("node:test");
+const assert = require("node:assert");
+const { Readable } = require("node:stream");
+const { createSendEmail } = require("../api/_lib/email.js");
+const { createUnsubscribe } = require("../api/_lib/unsubscribe.js");
+const { buildReminder, compose, contentFor } = require("../api/_lib/reminder.js");
+const cron = require("../api/cron-reminders.js");
+const unsub = require("../api/unsubscribe.js");
+const CORE = require("../core.js");
+
+const ctx = { lessons: require("../data.js"), patterns: require("../patterns.js"), guides: require("../guides.js") };
+const TAG = ctx.patterns[0].misconceptions[0];
+const U = createUnsubscribe("s3cret");
+
+const state = over => ({ ...CORE.blankState(), ...over });
+const miss = (lastMiss, due) => ({ box: 0, due, lastMiss, items: [], count: 1, resolved: false });
+
+test("email: without a key it mocks and never calls fetch", async () => {
+  let called = false;
+  const send = createSendEmail({ from: "a@b.test", fetch: async () => { called = true; } });
+  assert.deepStrictEqual(await send({ to: "u@x.test", subject: "s", text: "t" }), { mocked: true });
+  assert.strictEqual(called, false);
+});
+
+test("email: posts a well formed Resend request", async () => {
+  const seen = [];
+  const send = createSendEmail({ key: "re_k", from: "Drillbit <r@x.test>", fetch: async (url, init) => { seen.push([url, init]); return { ok: true, json: async () => ({ id: "m1" }) }; } });
+  const r = await send({ to: "u@x.test", subject: "s", html: "<p>h</p>", text: "t", headers: { "List-Unsubscribe": "<u>" } });
+  assert.deepStrictEqual(r, { mocked: false, id: "m1" });
+  assert.strictEqual(seen[0][0], "https://api.resend.com/emails");
+  assert.strictEqual(seen[0][1].method, "POST");
+  assert.strictEqual(seen[0][1].headers.Authorization, "Bearer re_k");
+  assert.deepStrictEqual(JSON.parse(seen[0][1].body), { from: "Drillbit <r@x.test>", to: ["u@x.test"], subject: "s", html: "<p>h</p>", text: "t", headers: { "List-Unsubscribe": "<u>" } });
+});
+
+test("email: a non-2xx response throws", async () => {
+  const send = createSendEmail({ key: "k", fetch: async () => ({ ok: false, status: 422 }) });
+  await assert.rejects(send({ to: "u", subject: "s" }), /422/);
+});
+
+test("unsubscribe token: round trip, tampered and other user rejected", () => {
+  const t = U.token("u1");
+  assert.ok(U.verify("u1", t));
+  assert.ok(!U.verify("u1", t.slice(0, -1) + (t.endsWith("A") ? "B" : "A")));
+  assert.ok(!U.verify("u2", t));
+  assert.ok(!U.verify("u1", "short"));
+  assert.ok(!createUnsubscribe("other").verify("u1", t));
+});
+
+const makeReq = (method, url, body = "") => {
+  const req = Readable.from(body ? [Buffer.from(body)] : []);
+  req.method = method;
+  req.url = url;
+  req.headers = {};
+  return req;
+};
+const call = async (handler, req) => {
+  const res = { statusCode: 0, headers: {}, body: "", setHeader(k, v) { this.headers[k] = v; }, end(b) { this.body = b; } };
+  await handler(req, res);
+  return res;
+};
+
+test("unsubscribe route: GET shows a confirm page that posts", async () => {
+  const disabled = [];
+  const h = unsub.create({ db: { disableReminders: async id => disabled.push(id) }, unsubscribe: U });
+  const res = await call(h, makeReq("GET", `/api/unsubscribe?u=u1&t=${U.token("u1")}`));
+  assert.strictEqual(res.statusCode, 200);
+  assert.match(res.body, /<form method="post"/);
+  assert.deepStrictEqual(disabled, []);
+});
+
+test("unsubscribe route: POST disables, including a one-click body", async () => {
+  const disabled = [];
+  const h = unsub.create({ db: { disableReminders: async id => disabled.push(id) }, unsubscribe: U });
+  const url = `/api/unsubscribe?u=u1&t=${U.token("u1")}`;
+  assert.match((await call(h, makeReq("POST", url))).body, /You are unsubscribed/);
+  assert.strictEqual((await call(h, makeReq("POST", url, "List-Unsubscribe=One-Click"))).statusCode, 200);
+  assert.deepStrictEqual(disabled, ["u1", "u1"]);
+});
+
+test("unsubscribe route: a bad token gives 400 and disables nothing", async () => {
+  const disabled = [];
+  const h = unsub.create({ db: { disableReminders: async id => disabled.push(id) }, unsubscribe: U });
+  for (const m of ["GET", "POST"]) {
+    assert.strictEqual((await call(h, makeReq(m, `/api/unsubscribe?u=u1&t=${U.token("u2")}`))).statusCode, 400);
+    assert.strictEqual((await call(h, makeReq(m, "/api/unsubscribe"))).statusCode, 400);
+  }
+  assert.deepStrictEqual(disabled, []);
+});
+
+test("buildReminder: due tags use the Bring back phrasing, max 3", () => {
+  const ids = ctx.patterns.flatMap(p => p.misconceptions.map(m => m.id)).slice(0, 4);
+  const misses = Object.fromEntries(ids.map(id => [id, miss("2026-03-02", "2026-03-04")]));
+  const r = buildReminder(state({ misses }), ctx, "2026-03-05");
+  assert.strictEqual(r.lines.filter(l => l.startsWith("Bring back: ")).length, 3);
+  assert.ok(r.lines.every(l => /^Bring back: .+ \(missed Monday\)$/.test(l)));
+  assert.match(r.subject, /3 to review/);
+});
+
+test("buildReminder: with nothing due it names the current pattern", () => {
+  const r = buildReminder(state(), ctx, "2026-03-05");
+  const cur = ctx.patterns.find(p => p.id === CORE.schedule(state(), ctx, "2026-03-05").current);
+  assert.deepStrictEqual(r.lines, [`Next step: ${cur.name}`]);
+  assert.ok(!r.lines.some(l => l.startsWith("Bring back")));
+});
+
+test("buildReminder: the streak line appears only when the streak is above 0", () => {
+  assert.ok(!buildReminder(state({ streak: 0 }), ctx, "2026-03-05").lines.some(l => l.startsWith("Streak")));
+  assert.ok(buildReminder(state({ streak: 4 }), ctx, "2026-03-05").lines.includes("Streak: 4 days"));
+  assert.ok(buildReminder(state({ streak: 1 }), ctx, "2026-03-05").lines.includes("Streak: 1 day"));
+});
+
+test("sample reminder", () => {
+  const r = buildReminder(state({ streak: 4, misses: { [TAG.id]: miss("2026-03-02", "2026-03-04") } }), ctx, "2026-03-05");
+  const { text } = compose(r, "https://drillbit.test", "https://drillbit.test/api/unsubscribe?u=u1&t=TOKEN");
+  console.log("SUBJECT:", r.subject, "\n" + text);
+  assert.match(text, /Unsubscribe: https:\/\/drillbit.test\/api\/unsubscribe/);
+});
+
+const NOW = new Date("2026-03-05T14:30:00Z");
+const row = (id, over = {}) => ({ id, progress: state({ streak: 2 }), reminder_hour: 9, timezone: "America/New_York", last_reminder_on: null, ...over });
+const harness = (rows, { fail = [], paid = [] } = {}) => {
+  const sent = [], marked = [];
+  const deps = {
+    db: {
+      reminderCandidates: async () => rows,
+      emailOf: async id => id + "@x.test",
+      markReminded: async (id, date) => marked.push([id, date]),
+      access: async id => ({ active: paid.includes(id) })
+    },
+    sendEmail: async m => { if (fail.includes(m.to)) throw new Error("resend down"); sent.push(m); return { mocked: true }; },
+    unsubscribe: U,
+    config: { cronSecret: "cron", appUrl: "https://drillbit.test/" },
+    contentFor,
+    now: () => NOW
+  };
+  const run = async (auth = "Bearer cron") => {
+    const req = makeReq("POST", "/api/cron-reminders");
+    if (auth) req.headers.authorization = auth;
+    const res = await call(cron.create(deps), req);
+    return { res, body: res.body ? JSON.parse(res.body) : null };
+  };
+  return { run, sent, marked };
+};
+
+test("cron: 401 without the secret or with a wrong one", async () => {
+  const h = harness([row("u1")]);
+  assert.strictEqual((await h.run(null)).res.statusCode, 401);
+  assert.strictEqual((await h.run("Bearer nope")).res.statusCode, 401);
+  assert.strictEqual(h.sent.length, 0);
+});
+
+test("cron: sends only to users at their local hour and sets last_reminder_on", async () => {
+  const h = harness([
+    row("ny"),
+    row("la", { timezone: "America/Los_Angeles" }),
+    row("utc", { timezone: "UTC", reminder_hour: 14 }),
+    row("tokyo", { timezone: "Asia/Tokyo", reminder_hour: 23 })
+  ]);
+  const { body } = await h.run();
+  assert.deepStrictEqual(body, { checked: 4, sent: 3, skipped: 1 });
+  assert.deepStrictEqual(h.sent.map(m => m.to).sort(), ["ny@x.test", "tokyo@x.test", "utc@x.test"]);
+  assert.deepStrictEqual(h.marked.map(m => m[0]).sort(), ["ny", "tokyo", "utc"]);
+  assert.deepStrictEqual(h.marked.find(m => m[0] === "tokyo"), ["tokyo", "2026-03-05"]);
+});
+
+test("cron: the message has the unsubscribe headers and links", async () => {
+  const h = harness([row("ny")]);
+  await h.run();
+  const m = h.sent[0];
+  const url = `https://drillbit.test/api/unsubscribe?u=ny&t=${U.token("ny")}`;
+  assert.strictEqual(m.headers["List-Unsubscribe"], `<${url}>`);
+  assert.strictEqual(m.headers["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
+  assert.ok(m.text.includes(url) && m.html.includes("Unsubscribe") && m.text.includes("https://drillbit.test"));
+});
+
+test("cron: skips users already reminded today and users who finished today's session", async () => {
+  const done = state({ days: { "2026-03-05": { answered: 5, correct: 4, done: true } } });
+  const h = harness([row("a", { last_reminder_on: "2026-03-05" }), row("b", { progress: done }), row("c", { last_reminder_on: "2026-03-04" })]);
+  const { body } = await h.run();
+  assert.deepStrictEqual(body, { checked: 3, sent: 1, skipped: 2 });
+  assert.deepStrictEqual(h.sent.map(m => m.to), ["c@x.test"]);
+});
+
+test("cron: an invalid timezone falls back to UTC", async () => {
+  const h = harness([row("bad", { timezone: "Not/AZone", reminder_hour: 14 }), row("none", { timezone: null, reminder_hour: 14 })]);
+  assert.strictEqual((await h.run()).body.sent, 2);
+});
+
+test("cron: one email failure does not stop the others", async () => {
+  const h = harness([row("a"), row("b"), row("c")], { fail: ["b@x.test"] });
+  const { res, body } = await h.run();
+  assert.strictEqual(res.statusCode, 200);
+  assert.deepStrictEqual(body, { checked: 3, sent: 2, skipped: 1 });
+  assert.deepStrictEqual(h.marked.map(m => m[0]), ["a", "c"]);
+});
+
+test("cron: free users are not pointed at locked patterns, paid users are", async () => {
+  const { split, FREE_PATTERNS } = require("../api/_lib/split.js");
+  const lockedIds = split(ctx).meta.lockedPatterns;
+  const locked = ctx.patterns.find(p => lockedIds.includes(p.id) && p.misconceptions.length);
+  const lockedTag = locked.misconceptions[0];
+  const freeTag = ctx.patterns.find(p => FREE_PATTERNS.includes(p.id)).misconceptions[0];
+  const progress = state({
+    diagnostic: { at: "2026-03-01", results: { [locked.id]: { correct: 0, total: 1 } } },
+    misses: { [lockedTag.id]: miss("2026-03-02", "2026-03-04") }
+  });
+  assert.strictEqual(CORE.schedule(progress, ctx, "2026-03-05").current, locked.id);
+  const h = harness([row("free", { progress }), row("paid", { progress })], { paid: ["paid"] });
+  assert.strictEqual((await h.run()).body.sent, 2);
+  const free = h.sent.find(m => m.to === "free@x.test").text;
+  const paid = h.sent.find(m => m.to === "paid@x.test").text;
+  assert.ok(!free.includes(lockedTag.label) && !free.includes(locked.name));
+  const nextFree = free.match(/Next step: (.+)/)[1];
+  assert.ok(ctx.patterns.some(p => FREE_PATTERNS.includes(p.id) && p.name === nextFree));
+  assert.ok(paid.includes(`Bring back: ${lockedTag.label}`));
+  const mixed = { ...progress, misses: { ...progress.misses, [freeTag.id]: miss("2026-03-03", "2026-03-04") } };
+  const m = harness([row("free", { progress: mixed })]);
+  await m.run();
+  assert.ok(m.sent[0].text.includes(`Bring back: ${freeTag.label}`) && !m.sent[0].text.includes(lockedTag.label));
+});

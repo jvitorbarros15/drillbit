@@ -90,6 +90,7 @@ Option B, GitHub: push this folder to a repo, then on vercel.com click Add New >
 - `.env.example`: server environment variable names
 - `config.example.js`: template for `config.js`
 - `analytics.js`: optional PostHog events, off without a key or when Do Not Track is on
+- `api/cron-reminders.js`, `api/unsubscribe.js`: daily reminder emails and one-click unsubscribe
 - `terms.html`, `privacy.html`, `refund.html`: legal pages
 - `supabase/`: the migration and the test bootstrap for it
 - `app.js`: the UI
@@ -123,3 +124,26 @@ npm test
 ## Analytics
 
 Set `POSTHOG_KEY` (and optionally `POSTHOG_HOST`) at build time for the browser events and in the server environment for the webhook events. Without a key every call is a no-op.
+
+## Reminder emails
+
+Users can turn on one email a day at an hour they pick (account page). Emails go out through Resend. Without `RESEND_API_KEY` the sender only logs, so everything runs locally. The privacy page already mentions Resend.
+
+1. In Resend, add and verify your sending domain (the DNS records Resend shows you), then create an API key.
+2. Set these on the server: `RESEND_API_KEY`, `RESEND_FROM` (for example `Drillbit <reminders@yourdomain.com>`), `UNSUBSCRIBE_SECRET` (a long random string; changing it invalidates old unsubscribe links), `CRON_SECRET` (another long random string) and `APP_URL`.
+3. Apply `supabase/migrations/20261029010000_reminders.sql`.
+4. Vercel Hobby crons run once a day, so call the endpoint every hour from Supabase instead. Enable the `pg_cron` and `pg_net` extensions, then run this yourself in the SQL editor with your real URL and secret:
+
+```sql
+select cron.schedule(
+  'drillbit-reminders',
+  '0 * * * *',
+  $$ select net.http_post(
+       url := 'https://YOUR-APP.vercel.app/api/cron-reminders',
+       headers := jsonb_build_object('Authorization', 'Bearer YOUR_CRON_SECRET', 'Content-Type', 'application/json'),
+       body := '{}'::jsonb
+     ) $$
+);
+```
+
+The endpoint sends to users whose local hour equals their chosen hour, at most once per local day, and skips anyone who already finished today's session.
