@@ -385,3 +385,82 @@ test("smoke over the real content", () => {
     }
   }
 });
+
+const sv = o => Object.assign(C.blankState(), o);
+
+test("mergeProgress items and misses: later date wins, remote on tie or missing", () => {
+  const it = (last, correct) => ({ seen: 1, correct, wrong: 0, last, hinted: false });
+  const m = (lastMiss, count) => ({ box: 0, due: null, lastMiss, items: [], count, resolved: false });
+  const l = sv({ items: { a: it("2026-03-10", 1), b: it("2026-03-01", 2), c: it("2026-03-05", 3), onlyL: it("2026-03-01", 1) }, misses: { x: m("2026-03-10", 1), y: m("2026-03-01", 2), z: m("2026-03-05", 3) } });
+  const r = sv({ items: { a: it("2026-03-02", 9), b: it("2026-03-09", 9), c: it("2026-03-05", 9), onlyR: it("2026-03-01", 1) }, misses: { x: m("2026-03-02", 9), y: m("2026-03-09", 9), z: m("2026-03-05", 9) } });
+  const out = C.mergeProgress(l, r);
+  assert.deepStrictEqual(["a", "b", "c"].map(k => out.items[k].correct), [1, 9, 9]);
+  assert.ok(out.items.onlyL && out.items.onlyR);
+  assert.deepStrictEqual(["x", "y", "z"].map(k => out.misses[k].count), [1, 9, 9]);
+  assert.strictEqual(out.v, 2);
+});
+
+test("mergeProgress patterns use the later of lastMiss and started, mastered follows the chosen entry", () => {
+  const l = sv({ patterns: { a: { started: "2026-03-01", lastMiss: "2026-03-10", mastered: null }, b: { started: "2026-03-08", lastMiss: null, mastered: "2026-03-09" }, c: { started: "2026-03-01", lastMiss: null, mastered: "2026-03-02" } } });
+  const r = sv({ patterns: { a: { started: "2026-03-01", lastMiss: "2026-03-05", mastered: "2026-03-04" }, b: { started: "2026-03-01", lastMiss: "2026-03-03", mastered: null }, c: { started: "2026-03-01", lastMiss: null, mastered: null } } });
+  const p = C.mergeProgress(l, r).patterns;
+  assert.deepStrictEqual(p.a, l.patterns.a);
+  assert.strictEqual(p.a.mastered, null);
+  assert.deepStrictEqual(p.b, l.patterns.b);
+  assert.deepStrictEqual(p.c, r.patterns.c);
+});
+
+test("mergeProgress days union with remote winning the same date", () => {
+  const out = C.mergeProgress(sv({ days: { d1: { answered: 1, correct: 1 }, d2: { answered: 5, correct: 5 } } }), sv({ days: { d2: { answered: 2, correct: 0 }, d3: { answered: 3, correct: 3 } } }));
+  assert.deepStrictEqual(Object.keys(out.days).sort(), ["d1", "d2", "d3"]);
+  assert.strictEqual(out.days.d2.answered, 2);
+});
+
+test("mergeProgress streak block comes from the later lastDone, best is the max", () => {
+  const l = sv({ streak: 5, best: 9, freezes: 1, lastDone: "2026-03-10" });
+  const r = sv({ streak: 2, best: 4, freezes: 2, lastDone: "2026-03-08" });
+  let out = C.mergeProgress(l, r);
+  assert.deepStrictEqual([out.streak, out.freezes, out.lastDone, out.best], [5, 1, "2026-03-10", 9]);
+  out = C.mergeProgress(r, l);
+  assert.deepStrictEqual([out.streak, out.freezes, out.lastDone, out.best], [5, 1, "2026-03-10", 9]);
+  out = C.mergeProgress(sv({ streak: 5, lastDone: "2026-03-10" }), sv({ streak: 2, lastDone: "2026-03-10" }));
+  assert.strictEqual(out.streak, 2);
+  out = C.mergeProgress(sv({ streak: 5, lastDone: "2026-03-10" }), sv({}));
+  assert.strictEqual(out.streak, 5);
+});
+
+test("mergeProgress profile, diagnostic, drafts, read", () => {
+  const l = sv({ profile: { interviewDate: "2026-05-01", language: "js" }, diagnostic: { at: "L", results: {} }, drafts: { a: "L", b: "L" }, read: { g1: "2026-03-01", g2: "2026-03-02" } });
+  const r = sv({ profile: { interviewDate: "2026-06-01", language: "js" }, diagnostic: { at: "R", results: {} }, drafts: { a: "R" }, read: { g2: "2026-03-09", g3: "2026-03-03" } });
+  let out = C.mergeProgress(l, r);
+  assert.strictEqual(out.profile.interviewDate, "2026-06-01");
+  assert.strictEqual(out.diagnostic.at, "R");
+  assert.deepStrictEqual(out.drafts, { a: "R", b: "L" });
+  assert.deepStrictEqual(out.read, { g1: "2026-03-01", g2: "2026-03-09", g3: "2026-03-03" });
+  out = C.mergeProgress(l, sv({}));
+  assert.strictEqual(out.profile.interviewDate, "2026-05-01");
+  assert.strictEqual(out.diagnostic.at, "L");
+});
+
+test("mergeProgress is pure and tracks updatedAt", () => {
+  const l = sv({ updatedAt: "2026-03-10T10:00:00.000Z", items: { a: { seen: 1, correct: 1, wrong: 0, last: "2026-03-01", hinted: false } } });
+  const r = sv({ updatedAt: "2026-03-11T10:00:00.000Z" });
+  const snap = JSON.stringify([l, r]);
+  const out = C.mergeProgress(l, r);
+  assert.strictEqual(JSON.stringify([l, r]), snap);
+  assert.strictEqual(out.updatedAt, "2026-03-11T10:00:00.000Z");
+  out.items.a.seen = 99;
+  assert.strictEqual(l.items.a.seen, 1);
+});
+
+test("queueRows upserts unresolved dated misses and removes resolved ones", () => {
+  const m = (box, due, resolved = false) => ({ box, due, lastMiss: T, items: [], count: 1, resolved });
+  const q = C.queueRows({ a: m(0, "2026-03-11"), b: m(1, "2026-03-13"), c: m(2, "2026-03-17"), d: m(3, null, true), e: m(0, null) });
+  assert.deepStrictEqual(q.upsert, [
+    { item_id: "a", due_at: "2026-03-11", interval_days: 1 },
+    { item_id: "b", due_at: "2026-03-13", interval_days: 3 },
+    { item_id: "c", due_at: "2026-03-17", interval_days: 7 }
+  ]);
+  assert.deepStrictEqual(q.remove, ["d"]);
+  assert.deepStrictEqual(C.queueRows({}), { upsert: [], remove: [] });
+});

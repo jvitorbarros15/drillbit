@@ -40,7 +40,7 @@
     } catch (e) { /* private mode or bad json */ }
     return CORE.blankState();
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } }
+  function save() { S.updatedAt = new Date().toISOString(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignore */ } }
 
   let notice = null;
   function reconcileStreak() {

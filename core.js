@@ -284,9 +284,49 @@
     return out;
   }
 
+  // ---------- sync ----------
+  const later = (a, b) => (a && (!b || a > b) ? a : null);
+  const newest = (...xs) => xs.filter(Boolean).sort().pop() || null;
+  const pick = (l, r, key) => (later(key(l), key(r)) ? l : r);
+  const mergeBy = (a, b, key) => {
+    const out = {};
+    for (const id of new Set([...Object.keys(a), ...Object.keys(b)]))
+      out[id] = !(id in a) ? b[id] : !(id in b) ? a[id] : pick(a[id], b[id], key);
+    return out;
+  };
+
+  function mergeProgress(local, remote) {
+    const l = migrate(local), r = migrate(remote);
+    const localWins = later(l.lastDone, r.lastDone) !== null;
+    const live = localWins ? l : r;
+    return JSON.parse(JSON.stringify({
+      v: 2,
+      profile: r.profile.interviewDate ? { ...r.profile } : { ...l.profile },
+      diagnostic: r.diagnostic || l.diagnostic,
+      items: mergeBy(l.items, r.items, x => x.last),
+      misses: mergeBy(l.misses, r.misses, x => x.lastMiss),
+      patterns: mergeBy(l.patterns, r.patterns, x => newest(x.lastMiss, x.started)),
+      streak: live.streak, freezes: live.freezes, lastDone: live.lastDone,
+      best: Math.max(l.best, r.best),
+      days: { ...l.days, ...r.days },
+      drafts: { ...l.drafts, ...r.drafts },
+      read: { ...l.read, ...r.read },
+      updatedAt: newest(l.updatedAt, r.updatedAt)
+    }));
+  }
+
+  function queueRows(misses) {
+    const upsert = [], remove = [];
+    for (const [tag, m] of Object.entries(misses)) {
+      if (m.resolved) remove.push(tag);
+      else if (m.due) upsert.push({ item_id: tag, due_at: m.due, interval_days: STEPS[m.box] });
+    }
+    return { upsert, remove };
+  }
+
   const CORE = {
     fmt, parse, addDays, diffDays, seededRng, blankState, migrate, patternOf, inferMiss, recordAttempt,
-    dueTags, pickReview, readiness, schedule, buildDiagnostic, recordDiagnostic, composeSession
+    dueTags, pickReview, readiness, schedule, buildDiagnostic, recordDiagnostic, composeSession, mergeProgress, queueRows
   };
   if (typeof module !== "undefined") module.exports = CORE;
   else window.CORE = CORE;
