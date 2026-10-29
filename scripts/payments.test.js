@@ -5,6 +5,8 @@ const Stripe = require("stripe");
 const checkout = require("../api/checkout.js");
 const webhook = require("../api/stripe-webhook.js");
 const access = require("../api/access.js");
+const content = require("../api/content.js");
+const { split } = require("../api/_lib/split.js");
 
 const SECRET = "whsec_test_secret";
 const real = new Stripe("sk_test_fake", { apiVersion: "2026-09-30.endive" });
@@ -165,4 +167,33 @@ test("access: 401 without a token, 405 on POST, passthrough of active and inacti
   assert.deepStrictEqual(on.body, { active: true, expiresAt: "2026-12-01T00:00:00Z" });
   const off = await call(access.create(deps(fakeDb({ access: async () => ({ active: false, expiresAt: null }) }))), makeReq("GET", auth));
   assert.deepStrictEqual(off.body, { active: false, expiresAt: null });
+});
+
+test("content: 401 without a token, 403 without access, 405 on POST", async () => {
+  const d = deps(fakeDb({ access: async () => ({ active: false, expiresAt: null }) }));
+  const h = content.create({ ...d, content: content.loadContent });
+  assert.strictEqual((await call(h, makeReq("GET"))).statusCode, 401);
+  assert.strictEqual((await call(h, makeReq("GET", { headers: { authorization: "Bearer nope" } }))).statusCode, 401);
+  const denied = await call(h, makeReq("GET", { headers: { authorization: "Bearer good" } }));
+  assert.strictEqual(denied.statusCode, 403);
+  assert.strictEqual(denied.body.lessons, undefined);
+  assert.strictEqual((await call(h, makeReq("POST", { headers: { authorization: "Bearer good" } }))).statusCode, 405);
+});
+
+test("content: 200 returns only paid lessons and non-free guides with no-store", async () => {
+  const h = content.create({ ...deps(fakeDb()), content: content.loadContent });
+  const res = await call(h, makeReq("GET", { headers: { authorization: "Bearer good" } }));
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.headers["Cache-Control"], "private, no-store");
+  const s = split({ lessons: require("../data.js"), patterns: require("../patterns.js"), guides: require("../guides.js") });
+  const free = new Set(s.freeLessons.map(l => l.id));
+  assert.strictEqual(res.body.lessons.length, s.paidLessons.length);
+  assert.ok(res.body.lessons.every(l => !free.has(l.id)));
+  const freeGuides = new Set(s.freeGuides.map(g => g.id));
+  assert.ok(res.body.guides.length > 0 && res.body.guides.every(g => !freeGuides.has(g.id) && g.body));
+});
+
+test("content: a db failure returns 500", async () => {
+  const h = content.create({ ...deps(fakeDb({ access: async () => { throw new Error("db"); } })), content: content.loadContent });
+  assert.strictEqual((await call(h, makeReq("GET", { headers: { authorization: "Bearer good" } }))).statusCode, 500);
 });

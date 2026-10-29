@@ -5,6 +5,7 @@
   if (!enabled) {
     const none = async () => null;
     window.AUTH = {
+      access: none, content: none, checkout: none,
       enabled: false, ready: Promise.resolve(), user: () => null, attach() {}, onChange() {},
       signInWithEmail: none, signInWithGoogle: none, signOut: none, pull: none, push: none,
       logAttempt: none, syncQueue: none, sync: none
@@ -90,8 +91,19 @@
     });
   }
 
+  const api = (path, init = {}) => guard(async () => {
+    const { data } = await client.auth.getSession();
+    const token = data && data.session && data.session.access_token;
+    if (!token) return null;
+    const res = await window.fetch(path, { ...init, headers: { ...(init.headers || {}), Authorization: "Bearer " + token } });
+    return res.ok ? res.json() : null;
+  });
+
   window.AUTH = {
     enabled: true,
+    access: () => api("/api/access"),
+    content: () => api("/api/content"),
+    checkout: () => api("/api/checkout", { method: "POST" }),
     ready,
     user: () => user,
     attach(h) { hooks = h; },

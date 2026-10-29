@@ -464,3 +464,16 @@ test("queueRows upserts unresolved dated misses and removes resolved ones", () =
   assert.deepStrictEqual(q.remove, ["d"]);
   assert.deepStrictEqual(C.queueRows({}), { upsert: [], remove: [] });
 });
+
+test("sessionsDone counts days with a finished session", () => {
+  assert.strictEqual(C.sessionsDone(sv({})), 0);
+  assert.strictEqual(C.sessionsDone(sv({ days: { a: { done: true }, b: { answered: 3 }, c: { done: true, answered: 1 } } })), 2);
+});
+
+test("patternLocked is open when there is no content meta", () => {
+  const meta = { lockedPatterns: ["pa"] };
+  assert.strictEqual(C.patternLocked(meta, "pa"), true);
+  assert.strictEqual(C.patternLocked(meta, "pb"), false);
+  assert.strictEqual(C.patternLocked(undefined, "pa"), false);
+  assert.strictEqual(C.patternLocked(null, "pa"), false);
+});

@@ -1,7 +1,28 @@
 {
   "cleanUrls": true,
   "headers": [
-    { "source": "/(.*)", "headers": [{ "key": "X-Content-Type-Options", "value": "nosniff" }] },
-    { "source": "/(app|data|patterns|core|guides|viz|auth).js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] }
-  ]
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/(app|content-free|patterns|core|viz|auth|config).js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ],
+  "functions": {
+    "api/content.js": { "includeFiles": "{data.js,guides.js,patterns.js,core.js}" }
+  },
+  "buildCommand": "npm run build",
+  "outputDirectory": "public"
 }

@@ -195,9 +195,12 @@ button.rd-cell:hover { border-color: var(--line2); }
 .rd-cell.shaky { border-left-color: var(--hot); } .rd-cell.shaky .rd-dot { background: var(--hot); }
 .rd-cell.ready { border-left-color: var(--good); } .rd-cell.ready .rd-dot { background: var(--good); }
 .rd-cell.soon { opacity: 0.55; }
+.rd-cell.locked { border-left-color: var(--violet); } .rd-cell.locked .rd-dot { background: var(--violet); }
+.pass-list { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 4px; }
 .date-input { font: inherit; color: var(--text); background: var(--bg2); border: 1px solid var(--line2); border-radius: 10px; padding: 8px 12px; color-scheme: dark; }
 .chip.who { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
 .auth-box { text-align: left; }
+.guide-card.locked { opacity: 0.8; }
 .auth-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 .auth-row .date-input { flex: 1; min-width: 200px; }
 .chip.date-input { padding: 3px 8px; border-radius: 999px; font-size: 0.85rem; }

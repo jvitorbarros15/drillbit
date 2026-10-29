@@ -324,9 +324,12 @@
     return { upsert, remove };
   }
 
+  const sessionsDone = state => Object.values(state.days).filter(d => d && d.done).length;
+  const patternLocked = (meta, pid) => !!meta && meta.lockedPatterns.includes(pid);
+
   const CORE = {
     fmt, parse, addDays, diffDays, seededRng, blankState, migrate, patternOf, inferMiss, recordAttempt,
-    dueTags, pickReview, readiness, schedule, buildDiagnostic, recordDiagnostic, composeSession, mergeProgress, queueRows
+    dueTags, pickReview, readiness, schedule, buildDiagnostic, recordDiagnostic, composeSession, mergeProgress, queueRows, sessionsDone, patternLocked
   };
   if (typeof module !== "undefined") module.exports = CORE;
   else window.CORE = CORE;

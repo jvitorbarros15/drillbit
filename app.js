@@ -2,18 +2,28 @@
   "use strict";
 
   // ---------- constants ----------
-  const LESSONS = window.LESSONS;
-  const BY_ID = Object.fromEntries(LESSONS.map(l => [l.id, l]));
-  const GUIDES = window.GUIDES;
-  const GUIDE_BY_ID = Object.fromEntries(GUIDES.map(g => [g.id, g]));
-  const GUIDE_FOR = {};
-  GUIDES.forEach(g => g.topics.forEach(t => (GUIDE_FOR[t] = g)));
+  let LESSONS = window.LESSONS;
+  let GUIDES = window.GUIDES;
+  let BY_ID, GUIDE_BY_ID, GUIDE_FOR, ctx, sctx;
+  const META = window.CONTENT_META || null;
+  const PASS_PRICE = "$29";
+  const FREE_SESSIONS = 3;
   const PATTERNS = window.PATTERNS;
   const PAT_BY_ID = Object.fromEntries(PATTERNS.map(p => [p.id, p]));
   const MISC = {};
   PATTERNS.forEach(p => p.misconceptions.forEach(m => (MISC[m.id] = m)));
   const CORE = window.CORE;
-  const ctx = { lessons: LESSONS, patterns: PATTERNS, guides: GUIDES };
+  let access = null;
+  const gated = () => !!META && !(access && access.active);
+  function indexContent() {
+    BY_ID = Object.fromEntries(LESSONS.map(l => [l.id, l]));
+    GUIDE_BY_ID = Object.fromEntries(GUIDES.map(g => [g.id, g]));
+    GUIDE_FOR = {};
+    GUIDES.forEach(g => g.topics.forEach(t => (GUIDE_FOR[t] = g)));
+    ctx = { lessons: LESSONS, patterns: PATTERNS, guides: GUIDES };
+    sctx = gated() ? { lessons: LESSONS.filter(l => META.freePatterns.includes(CORE.patternOf(l, ctx))), patterns: PATTERNS, guides: GUIDES } : ctx;
+  }
+  indexContent();
   const KEY = "drillbit.v2";
   const OLD_KEY = "goatgym.v1";
   const LEVEL_NAMES = ["", "Warm-up", "Solid", "Hard", "Senior", "Brutal"];
@@ -173,8 +183,10 @@
     $("#chips").innerHTML = `
       <span class="chip flame ${doneToday ? "lit" : ""}" title="Day streak">${flameSvg()}<b>${S.streak}</b></span>
       <span class="chip ice" title="Streak freezes">${iceSvg()}<b>${S.freezes}</b></span>
+      ${access && access.active ? `<button class="chip" data-act="pass" title="Sprint Pass"><b>Pass:</b> ${passDaysLeft()} day${passDaysLeft() > 1 ? "s" : ""} left</button>` : ""}
       ${date}${AUTH.enabled ? accountChips() : ""}`;
   }
+  const passDaysLeft = () => Math.max(1, Math.ceil((Date.parse(access.expiresAt) - Date.now()) / 86400000));
   function accountChips() {
     const u = AUTH.user();
     return u
@@ -261,7 +273,7 @@
   }
 
   function phaseLine() {
-    const sch = CORE.schedule(S, ctx, today());
+    const sch = CORE.schedule(S, sctx, today());
     if (sch.phase === "final-review") return "Final review week.";
     if (sch.phase === "past") return "Interview day has passed. Set a new date or keep practicing.";
     const p = PAT_BY_ID[sch.current];
@@ -281,10 +293,13 @@
   function readinessPanel() {
     const cells = CORE.readiness(S, ctx, today()).map(r => {
       const g = GUIDE_BY_ID[PAT_BY_ID[r.id].guide];
-      const inner = r.hasContent
+      const locked = gated() && CORE.patternLocked(META, r.id);
+      const inner = locked
+        ? `<span class="rd-name">${esc(r.name)}</span><span class="rd-status"><i class="rd-dot"></i>Sprint Pass</span>`
+        : r.hasContent
         ? `<span class="rd-name">${esc(r.name)}</span><span class="rd-status"><i class="rd-dot"></i>${STATUS[r.status]}</span>${r.openMisses ? `<span class="muted small">${r.openMisses} open miss${r.openMisses > 1 ? "es" : ""}</span>` : ""}`
         : `<span class="rd-name">${esc(r.name)}</span><span class="muted small">Coming soon</span>`;
-      const cls = `rd-cell ${r.hasContent ? r.status : "soon"}`;
+      const cls = `rd-cell ${locked ? "locked" : r.hasContent ? r.status : "soon"}`;
       return g ? `<button class="${cls}" data-act="guide" data-id="${g.id}">${inner}</button>` : `<div class="${cls}">${inner}</div>`;
     }).join("");
     return `
@@ -294,10 +309,16 @@
       </section>`;
   }
 
+  let unlockMsg = null;
+  function sessionBlocked() {
+    const ex = S.days[today()] && S.days[today()].session;
+    return gated() && CORE.sessionsDone(S) >= FREE_SESSIONS && !(ex && ex.done.length > 0);
+  }
+
   function getSession() {
     const t = today();
     const day = S.days[t] || (S.days[t] = { answered: 0, correct: 0 });
-    if (!day.session) { day.session = { entries: CORE.composeSession(S, ctx, t), done: [] }; save(); }
+    if (!day.session) { day.session = { entries: CORE.composeSession(S, sctx, t), done: [] }; save(); }
     return day.session;
   }
 
@@ -307,7 +328,8 @@
     renderChips();
     const t = today();
     const doneToday = S.lastDone === t;
-    const sess = S.diagnostic ? getSession() : null;
+    const blocked = !!S.diagnostic && !doneToday && sessionBlocked();
+    const sess = S.diagnostic && !blocked ? getSession() : null;
     const progress = sess ? sess.done.length : 0;
     const totalAnswered = Object.values(S.items).reduce((a, v) => a + v.seen, 0);
     const totalCorrect = Object.values(S.items).reduce((a, v) => a + v.correct, 0);
@@ -324,6 +346,10 @@
       title = "Locked in for today.";
       sub = "Today's session is done. The flame is safe until tomorrow.";
       cta = `<button class="btn big ghost" data-act="practice-nav">Practice</button>`;
+    } else if (blocked) {
+      title = "Free sessions used.";
+      sub = "Your 3 free sessions are done.";
+      cta = `<button class="btn big primary" data-act="pass">Get the Sprint Pass</button><button class="btn big ghost" data-act="practice-nav">Practice</button>`;
     } else if (progress) {
       title = S.streak ? "Keep the flame alive." : "Day one starts now.";
       sub = "You're mid-session. Finish it to keep the streak.";
@@ -336,6 +362,7 @@
 
     app.innerHTML = `
       ${notice ? `<div class="notice ${notice.kind}">${esc(notice.text)}</div>` : ""}
+      ${unlockMsg ? `<div class="notice good">${esc(unlockMsg)}</div>` : ""}
       <section class="hero">
         <div class="hero-flame-wrap">
           <div class="hero-flame ${doneToday ? "lit" : ""}">${flameSvg()}<b>${S.streak}</b></div>
@@ -361,6 +388,11 @@
       <section class="panel">
         <div class="panel-head"><h3>Today's session</h3><span class="muted small">${progress}/${sess.entries.length} done</span></div>
         ${sessionRows(sess.entries, sess.done)}
+      </section>` : blocked ? `
+      <section class="panel">
+        <div class="panel-head"><h3>Today's session</h3></div>
+        <p>Your 3 free sessions are done. Practice Hashing and Two pointers anytime, or get the Sprint Pass for the full plan.</p>
+        <button class="btn primary" data-act="pass">Get the Sprint Pass</button>
       </section>` : ""}
 
       ${readinessPanel()}
@@ -395,6 +427,72 @@
         ${trackPanel("algo")}
         ${trackPanel("sd")}
       </div>`;
+  }
+
+  const RETURN_KEY = "drillbit.return";
+  function renderPass() {
+    run = null; cur = null;
+    setNav("");
+    renderChips();
+    const active = access && access.active;
+    const buy = active
+      ? `<p class="muted">Your pass is active until ${esc(new Date(access.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }))}. Buying again adds 30 days after that.</p><button class="btn ghost" data-act="buy">Extend by 30 days</button>`
+      : "";
+    const button = !AUTH.enabled
+      ? `<button class="btn primary big" disabled>Checkout is not set up yet</button>`
+      : `<button class="btn primary big" data-act="buy">Get the Sprint Pass</button>`;
+    app.innerHTML = `
+      <section class="learn-head">
+        <p class="eyebrow">Structured practice</p>
+        <h1>Sprint Pass</h1>
+        <p class="muted"><b>${PASS_PRICE} one-time. No subscription.</b> 30 days of full access.</p>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h3>What's included</h3></div>
+        <ul class="pass-list">
+          <li>Full access for 30 days</li>
+          <li>All ${META ? META.patternsWithContent : new Set(LESSONS.map(l => CORE.patternOf(l, ctx)).filter(Boolean)).size} patterns available now, with their guides and questions</li>
+          <li>A plan that counts down to your interview date</li>
+          <li>The mistake queue, which brings back what you missed</li>
+          <li>The readiness map</li>
+          <li>System design, as a bonus</li>
+        </ul>
+        <p class="muted small">Free without a pass: the diagnostic, your first ${FREE_SESSIONS} sessions, and unlimited Hashing and Two pointers.</p>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h3>Refunds</h3></div>
+        <p class="muted">Full refund within 7 days of purchase if you have completed fewer than ${FREE_SESSIONS} sessions.</p>
+      </section>
+      <div class="hero-cta">${active ? buy : button}</div>`;
+  }
+
+  async function refreshAccess() {
+    if (!META || !AUTH.enabled) return false;
+    const a = await AUTH.access();
+    if (!a || !a.active) return false;
+    if (gated()) {
+      const c = await AUTH.content();
+      if (!c) return false;
+      const have = new Set(LESSONS.map(l => l.id));
+      LESSONS = LESSONS.concat(c.lessons.filter(l => !have.has(l.id)));
+      const full = new Map(c.guides.map(g => [g.id, g]));
+      GUIDES = GUIDES.map(g => full.get(g.id) || g).concat(c.guides.filter(g => !GUIDES.some(x => x.id === g.id)));
+    }
+    access = a;
+    indexContent();
+    renderChips();
+    return true;
+  }
+
+  function pollUnlock() {
+    unlockMsg = "Payment received. Unlocking your pass.";
+    const t0 = Date.now();
+    const tick = async () => {
+      if (await refreshAccess()) { unlockMsg = null; toast("Sprint Pass unlocked."); if (!run) route(); return; }
+      if (Date.now() - t0 >= 30000) { unlockMsg = "Your payment is being confirmed. Refresh in a minute."; if (!run) route(); return; }
+      setTimeout(tick, 2000);
+    };
+    tick();
   }
 
   // ---------- runs ----------
@@ -456,16 +554,16 @@
       const done = ls.filter(l => cleared(l.id)).length;
       const missed = stillMissed(g);
       return `
-        <button class="guide-card ${g.track} ${S.read[g.id] ? "read" : ""}" data-act="guide" data-id="${g.id}">
+        <button class="guide-card ${g.track} ${S.read[g.id] ? "read" : ""} ${g.locked ? "locked" : ""}" data-act="guide" data-id="${g.id}">
           <span class="gc-top">
             <span class="gc-title">${esc(g.title)}</span>
             ${S.read[g.id] ? `<span class="gc-check" title="Read">&#10003;</span>` : ""}
           </span>
           <span class="gc-sum">${esc(g.summary)}</span>
           <span class="gc-meta">
-            <span>${done}/${ls.length} cleared</span>
+            ${g.locked ? `<span class="gc-miss">Sprint Pass</span>` : `<span>${done}/${ls.length} cleared</span>`}
             ${missed ? `<span class="gc-miss">${missed} to redo</span>` : ""}
-            ${g.body.includes("::viz") ? `<span class="gc-int">interactive</span>` : ""}
+            ${g.body && g.body.includes("::viz") ? `<span class="gc-int">interactive</span>` : ""}
           </span>
           <span class="bar"><span style="width:${ls.length ? Math.round((done / ls.length) * 100) : 0}%"></span></span>
         </button>`;
@@ -495,6 +593,24 @@
     const prev = list[i - 1], next = list[i + 1];
     const ls = guideLessons(g);
     const fresh = ls.filter(l => !cleared(l.id)).length;
+    if (g.locked) {
+      app.innerHTML = `
+        <article class="guide ${g.track}">
+          <button class="link back" data-act="learn">&larr; All guides</button>
+          <div class="meta"><span class="tag ${g.track}">${TRACKS[g.track]}</span><span class="topic">${g.topics.map(esc).join(" &middot; ")}</span></div>
+          <h1>${esc(g.title)}</h1>
+          <p class="lede">${esc(g.summary)}</p>
+          <section class="guide-end panel">
+            <div><h3>Part of the Sprint Pass</h3><p class="muted small">The full guide and its questions unlock with the pass.</p></div>
+            <div class="hero-cta"><button class="btn primary" data-act="pass">Unlock with the Sprint Pass</button></div>
+          </section>
+          <nav class="guide-nav">
+            ${prev ? `<button class="link" data-act="guide" data-id="${prev.id}">&larr; ${esc(prev.title)}</button>` : "<span></span>"}
+            ${next ? `<button class="link" data-act="guide" data-id="${next.id}">${esc(next.title)} &rarr;</button>` : ""}
+          </nav>
+        </article>`;
+      return;
+    }
     const heads = [...g.body.matchAll(/^## (.+)$/gm)].map(m => m[1]);
     app.innerHTML = `
       <article class="guide ${g.track}">
@@ -546,6 +662,7 @@
     else if (h.startsWith("learn/")) renderGuide(h.slice(6));
     else if (h === "practice") renderPractice();
     else if (h === "account") renderAccount();
+    else if (h === "pass") renderPass();
     else renderHome();
     window.scrollTo(0, 0);
   }
@@ -565,6 +682,7 @@
   }
 
   function startSession() {
+    if (S.lastDone !== today() && sessionBlocked()) { go("#pass"); return; }
     const sess = getSession();
     if (!sess.entries.length) { toast("Nothing to practice yet."); return; }
     clearHash();
@@ -670,13 +788,14 @@
   function renderConcept(entry, top) {
     const p = PAT_BY_ID[entry.patternId];
     const g = entry.guideId && GUIDE_BY_ID[entry.guideId];
+    const full = g && !g.locked;
     cur = { concept: true };
     app.innerHTML = `
       <div class="run">
         ${top}
         <article class="card q algo">
           <div class="meta"><span class="tag algo">Concept</span><span class="topic">${esc(p.name)}</span></div>
-          ${g
+          ${full
             ? `<h2>${esc(g.title)}</h2><div class="guide-body">${md(g.body)}</div>`
             : `<h2>${esc(p.name)}</h2><p class="prompt">Watch for these mistakes.</p>
                <div class="guide-body"><ul>${p.misconceptions.map(m => `<li><strong>${esc(m.label)}</strong> ${esc(m.fix)}</li>`).join("")}</ul></div>`}
@@ -941,7 +1060,7 @@
     const t = today();
     const tags = CORE.dueTags(S, CORE.addDays(t, 1)).slice(0, 3);
     if (tags.length) return tags.map(tag => `Tomorrow: ${esc(MISC[tag] ? MISC[tag].label : tag)} (missed ${weekday(S.misses[tag].lastMiss)})`);
-    const p = PAT_BY_ID[CORE.schedule(S, ctx, CORE.addDays(t, 1)).current];
+    const p = PAT_BY_ID[CORE.schedule(S, sctx, CORE.addDays(t, 1)).current];
     return p ? [`Tomorrow: next step in ${esc(p.name)}`] : [];
   }
 
@@ -1028,7 +1147,20 @@
       case "session": startSession(); window.scrollTo(0, 0); break;
       case "concept-next": conceptNext(); break;
       case "sign-in": go("#account"); break;
-      case "sign-out": AUTH.signOut().then(() => toast("Signed out. Progress stays on this device.")); break;
+      case "pass": go("#pass"); break;
+      case "buy":
+        if (!AUTH.user()) {
+          try { localStorage.setItem(RETURN_KEY, "#pass"); } catch (err) { /* ignore */ }
+          go("#account");
+        } else {
+          AUTH.checkout().then(r => { if (r && r.url) location.href = r.url; else toast("Couldn't start checkout. Try again."); });
+        }
+        break;
+      case "sign-out": {
+        const had = access && access.active;
+        AUTH.signOut().then(() => { if (had) location.reload(); else toast("Signed out. Progress stays on this device."); });
+        break;
+      }
       case "auth-email": {
         const v = $("#auth-email").value.trim();
         if (!v) { toast("Enter your email."); break; }
@@ -1102,10 +1234,23 @@
   // ---------- boot ----------
   window.addEventListener("hashchange", route);
   AUTH.attach({ get: () => S, set: s => { S = s; persist(); }, notify: toast });
-  AUTH.onChange(what => {
+  const takeReturn = () => {
+    try { const r = localStorage.getItem(RETURN_KEY); localStorage.removeItem(RETURN_KEY); return r; } catch (err) { return null; }
+  };
+  AUTH.onChange(async what => {
     renderChips();
-    if (what === "synced" && !run) route();
+    if (what !== "synced") return;
+    await refreshAccess();
+    const back = takeReturn();
+    if (back) go(back);
+    else if (!run) route();
   });
+  const returned = new URLSearchParams(location.search).get("checkout");
+  if (returned) {
+    history.replaceState(null, "", location.pathname + location.hash);
+    if (returned === "cancel") toast("Checkout canceled.");
+    else if (returned === "success" && META && AUTH.enabled) pollUnlock();
+  }
   reconcileStreak();
   route();
   document.addEventListener("visibilitychange", () => {

@@ -2,8 +2,9 @@
   "name": "drillbit",
   "private": true,
   "scripts": {
-    "test": "node scripts/verify.js && node --test scripts/schema.test.js scripts/patterns-check.test.js scripts/core.test.js scripts/rls.test.js scripts/auth.test.js scripts/payments.test.js",
-    "lint": "node --check app.js && node --check data.js && node --check guides.js && node --check viz.js && node --check scripts/verify.js && node --check scripts/schema.js && node --check patterns.js && node --check scripts/patterns-check.js && node --check core.js && node --check scripts/rls.test.js && node --check auth.js && node --check config.example.js && node --check scripts/auth.test.js && node --check api/_lib/http.js && node --check api/_lib/deps.js && node --check api/checkout.js && node --check api/stripe-webhook.js && node --check api/access.js && node --check scripts/payments.test.js"
+    "test": "node scripts/verify.js && node --test scripts/schema.test.js scripts/patterns-check.test.js scripts/core.test.js scripts/rls.test.js scripts/auth.test.js scripts/payments.test.js scripts/build.test.js",
+    "lint": "node --check app.js && node --check data.js && node --check guides.js && node --check viz.js && node --check scripts/verify.js && node --check scripts/schema.js && node --check patterns.js && node --check scripts/patterns-check.js && node --check core.js && node --check scripts/rls.test.js && node --check auth.js && node --check config.example.js && node --check scripts/auth.test.js && node --check api/_lib/http.js && node --check api/_lib/deps.js && node --check api/checkout.js && node --check api/stripe-webhook.js && node --check api/access.js && node --check scripts/payments.test.js && node --check api/content.js && node --check api/_lib/split.js && node --check scripts/build.js && node --check scripts/build.test.js",
+    "build": "node scripts/build.js"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11"

@@ -47,6 +47,14 @@ Server routes live in `api/`: `checkout.js` (needs a Supabase access token), `st
    - `charge.dispute.created`
 5. Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_SPRINT`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `APP_URL` (no trailing slash). The service role key bypasses RLS, so keep it server side only.
 
+## Free and paid content
+
+`npm run build` writes `public/` (gitignored), which is what Vercel serves. The public bundle (`content-free.js`) holds only the free lessons (the diagnostic questions plus every Hashing and Two pointers question) and the full Hashing and Two pointers guides. Every other guide is a stub with no body. Paid lessons and guides are returned by `api/content.js` only to a signed-in user with an active pass. The root `index.html` is the dev mode with all content and no gating.
+
+The Sprint Pass is $29, one-time, for 30 days of full access. Free: the diagnostic, the first 3 completed sessions, and unlimited Hashing and Two pointers. Refunds are handled in the Stripe dashboard: a full refund within 7 days if fewer than 3 sessions were completed. The webhook revokes access on a full refund.
+
+For the build, set `SUPABASE_URL` and `SUPABASE_ANON_KEY` so it writes `public/config.js`.
+
 ## Run locally
 
 No build step. Any static server works (the code runner uses a Web Worker, so opening the file directly won't run code):
@@ -77,7 +85,8 @@ Option B, GitHub: push this folder to a repo, then on vercel.com click Add New >
 - `patterns.js`: the algorithm patterns and their misconception tags
 - `core.js`: learning logic (misses, schedule, readiness, session)
 - `auth.js`: optional Supabase sign-in and sync
-- `api/`: checkout, Stripe webhook and access check (Vercel functions)
+- `api/`: checkout, Stripe webhook, access check and gated content (Vercel functions)
+- `scripts/build.js`: builds the free `public/` bundle
 - `.env.example`: server environment variable names
 - `config.example.js`: template for `config.js`
 - `supabase/`: the migration and the test bootstrap for it

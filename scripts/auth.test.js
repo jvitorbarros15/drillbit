@@ -9,7 +9,7 @@ const src = fs.readFileSync(path.join(__dirname, "..", "auth.js"), "utf8");
 const json = x => JSON.parse(JSON.stringify(x));
 const flush = async () => { for (let i = 0; i < 8; i++) await new Promise(r => setImmediate(r)); };
 
-function setup({ config, remote = null, failUpdate = false } = {}) {
+function setup({ config, remote = null, failUpdate = false, fetchStatus = 200, token = "tok" } = {}) {
   const calls = [];
   let authCb = null;
   const builder = (table, op, args) => {
@@ -30,6 +30,7 @@ function setup({ config, remote = null, failUpdate = false } = {}) {
       return {
         auth: {
           onAuthStateChange: cb => { authCb = cb; },
+          getSession: async () => ({ data: { session: token ? { access_token: token } : null } }),
           signInWithOtp: async a => { calls.push({ op: "signInWithOtp", args: a }); return { error: null }; },
           signInWithOAuth: async a => { calls.push({ op: "signInWithOAuth", args: a }); return { error: null }; },
           signOut: async () => { calls.push({ op: "signOut" }); return { error: null }; }
@@ -44,7 +45,10 @@ function setup({ config, remote = null, failUpdate = false } = {}) {
       };
     }
   };
-  const win = { CORE, location: { origin: "http://app.test" }, supabase: fake };
+  const win = {
+    CORE, location: { origin: "http://app.test" }, supabase: fake,
+    fetch: async (url, init) => { calls.push({ op: "fetch", args: [url, init] }); return { ok: fetchStatus === 200, status: fetchStatus, json: async () => ({ url, ok: 1 }) }; }
+  };
   if (config) win.DRILLBIT_CONFIG = config;
   const ctx = vm.createContext({
     window: win,
@@ -183,4 +187,30 @@ test("a network failure never throws and notifies once", async () => {
   await flush();
   assert.deepStrictEqual(await t.AUTH.pull().then(() => "ok"), "ok");
   assert.strictEqual(t.notes.length, 1);
+});
+
+test("access, content and checkout call the API with the bearer token", async () => {
+  const t = setup({ config: CFG });
+  assert.strictEqual(json(await t.AUTH.access()).url, "/api/access");
+  assert.strictEqual(json(await t.AUTH.content()).url, "/api/content");
+  assert.strictEqual(json(await t.AUTH.checkout()).url, "/api/checkout");
+  const f = ops(t.calls, "fetch");
+  assert.deepStrictEqual(f.map(c => c.args[0]), ["/api/access", "/api/content", "/api/checkout"]);
+  assert.ok(f.every(c => c.args[1].headers.Authorization === "Bearer tok"));
+  assert.strictEqual(f[0].args[1].method, undefined);
+  assert.strictEqual(f[2].args[1].method, "POST");
+});
+
+test("API calls resolve null when signed out or when the server refuses", async () => {
+  const out = setup({ config: CFG, token: null });
+  assert.strictEqual(await out.AUTH.access(), null);
+  assert.strictEqual(ops(out.calls, "fetch").length, 0);
+  const denied = setup({ config: CFG, fetchStatus: 403 });
+  assert.strictEqual(await denied.AUTH.content(), null);
+  assert.strictEqual(denied.notes.length, 0);
+});
+
+test("disabled AUTH resolves access, content and checkout to null", async () => {
+  const { AUTH } = setup({});
+  assert.deepStrictEqual([await AUTH.access(), await AUTH.content(), await AUTH.checkout()], [null, null, null]);
 });
