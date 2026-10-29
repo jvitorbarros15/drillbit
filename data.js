@@ -2178,6 +2178,320 @@ const LESSONS = [
     answer: 3,
     misses: ["dp.wrong-pattern", "dp.too-slow", "dp.wrong-pattern", null],
     explain: "That array stays sorted, so each number replaces the first entry that is at least as large (or extends the array) found by binary search, costing O(log n). The final length of the array is the answer. Memoizing the quadratic recurrence still has n states with n transitions each, and sorting or a greedy extension changes the problem."
+  },
+  // ============================ CODE LESSONS (C3) ============================
+  {
+    id: "a122", track: "algo", level: 1, topic: "Linked lists", type: "code",
+    title: "Middle of a linked list",
+    prompt: "A linked list is stored in two arrays: node `i` holds `values[i]` and points to node `next[i]`, where `-1` means the end. The head is node 0, and the nodes are NOT stored in list order. Return the value of the middle node by following the links with a slow and a fast pointer. If the list has two middle nodes, return the second one.",
+    fn: "middleValue",
+    starter: `function middleValue(values, next) {
+
+}`,
+    hint: "Move one pointer one link at a time and another two links at a time. When the fast one runs out, where is the slow one?",
+    tests: [
+      { args: [[7], [-1]], expected: 7 },
+      { args: [[1, 2], [1, -1]], expected: 2 },
+      { args: [[10, 20, 30], [2, -1, 1]], expected: 30, miss: "complexity.list-vs-array" },
+      { args: [[1, 2, 3, 4], [1, 2, 3, -1]], expected: 3 },
+      { args: [[1, 2, 3, 4, 5], [3, 4, -1, 1, 2]], expected: 2, miss: "complexity.list-vs-array" },
+      { label: "1,000,003 nodes stored out of order", argsCode: "(function () { const N = 1000003; const values = new Array(N), next = new Array(N); for (let j = 0; j < N; j++) { const node = (j * 17) % N; values[node] = node; next[node] = j + 1 < N ? ((j + 1) * 17) % N : -1; } return [values, next]; })()", expectedCode: "(500001 * 17) % 1000003", miss: "complexity.list-vs-array" }
+    ],
+    solution: `function middleValue(values, next) {
+  let slow = 0, fast = 0;
+  while (fast !== -1 && next[fast] !== -1) {
+    slow = next[slow];
+    fast = next[next[fast]];
+  }
+  return values[slow];
+}`,
+    explain: "A linked list has no index, so `values[n / 2]` is the middle of the array, not of the list. The fast pointer moves two links for every one the slow pointer moves, so when fast reaches the end slow is halfway. That is one pass, O(n) time and O(1) memory, without counting the length first."
+  },
+  {
+    id: "a123", track: "algo", level: 1, topic: "Sliding window", type: "code",
+    title: "Best window of size k",
+    prompt: "Return the largest sum of any `k` consecutive numbers in `nums`. `k` is at least 1 and at most `nums.length`, and numbers can be negative. One test has 400,000 numbers with `k` = 200,000, so adding up every window from scratch will time out.",
+    fn: "maxWindowSum",
+    starter: `function maxWindowSum(nums, k) {
+
+}`,
+    hint: "When the window moves one step, only one number enters and one leaves. Update the sum instead of rebuilding it.",
+    tests: [
+      { args: [[1, 2, 3], 3], expected: 6 },
+      { args: [[2, 1, 5, 1, 3, 2], 3], expected: 9 },
+      { args: [[5, -2, 7], 1], expected: 7 },
+      { args: [[-1, -2, -3], 2], expected: -3 },
+      { label: "400k numbers, k = 200k", argsCode: "[Array.from({ length: 400000 }, (_, i) => (i * 37) % 1000 - 500), 200000]", expectedCode: "(function () { const a = Array.from({ length: 400000 }, (_, i) => (i * 37) % 1000 - 500); const p = [0]; for (const x of a) p.push(p[p.length - 1] + x); let best = -Infinity; for (let i = 0; i + 200000 <= a.length; i++) best = Math.max(best, p[i + 200000] - p[i]); return best; })()", miss: "sliding-window.recompute" }
+    ],
+    solution: `function maxWindowSum(nums, k) {
+  let sum = 0;
+  for (let i = 0; i < k; i++) sum += nums[i];
+  let best = sum;
+  for (let i = k; i < nums.length; i++) {
+    sum += nums[i] - nums[i - k];
+    best = Math.max(best, sum);
+  }
+  return best;
+}`,
+    explain: "A window of fixed size slides one step at a time, so its sum changes by the number entering minus the number leaving. Each slide is O(1) and the whole scan is O(n). Re-adding all k values for every window is O(n times k), about 10^11 steps on the big test. Start `best` from the first window rather than 0, since every number can be negative."
+  },
+  {
+    id: "a234", track: "algo", level: 2, topic: "Linked lists", type: "code",
+    title: "Cycle in a linked list",
+    prompt: "A linked list is stored as an array `next`: node `i` points to node `next[i]`, and `-1` means the end of the list. The head is node 0, and an empty array is an empty list. Return `true` if following the links from the head ever loops back. Use O(1) extra memory (no Set of visited nodes). One test has 1,000,000 nodes.",
+    fn: "hasCycle",
+    starter: `function hasCycle(next) {
+
+}`,
+    hint: "Slow and fast pointers: if there is a loop, the fast pointer eventually catches up with the slow one. If there is none, fast reaches -1.",
+    tests: [
+      { args: [[]], expected: false },
+      { args: [[-1]], expected: false },
+      { args: [[0]], expected: true, miss: "complexity.wrong-pattern" },
+      { args: [[1, 2, -1]], expected: false },
+      { args: [[1, 2, 3, 1]], expected: true },
+      { args: [[1, 2, 0]], expected: true },
+      { label: "1,000,000 nodes in a straight line", argsCode: "[Array.from({ length: 1000000 }, (_, i) => i < 999999 ? i + 1 : -1)]", expected: false, miss: "complexity.nested-loop-cost" },
+      { label: "1,000,000 nodes, the tail points back to the middle", argsCode: "[Array.from({ length: 1000000 }, (_, i) => i < 999999 ? i + 1 : 500000)]", expected: true, miss: "complexity.ignored-limits" }
+    ],
+    solution: `function hasCycle(next) {
+  if (next.length === 0) return false;
+  let slow = 0, fast = 0;
+  while (fast !== -1 && next[fast] !== -1) {
+    slow = next[slow];
+    fast = next[next[fast]];
+    if (slow === fast) return true;
+  }
+  return false;
+}`,
+    explain: "Without a loop the fast pointer falls off the end. With one, both pointers end up circling it, and since fast gains one link on slow per step, they must meet. That is O(n) time and O(1) memory, compared with a Set that needs memory for every node. Checking each new node against all earlier ones with a list is O(n squared) and takes far too long on a million nodes."
+  },
+  {
+    id: "a235", track: "algo", level: 2, topic: "Prefix sums", type: "code",
+    title: "Range sum queries",
+    prompt: "`nums` never changes. `queries` is a list of `[l, r]` pairs (inclusive, `l <= r`). Return an array with the sum of `nums[l..r]` for every query. One test has 200,000 numbers and 200,000 queries over long ranges, so summing each range with a loop will time out.",
+    fn: "rangeSums",
+    starter: `function rangeSums(nums, queries) {
+
+}`,
+    hint: "Precompute running totals once. A range sum is then a subtraction of two of them. Make room for the empty prefix so that l = 0 works too.",
+    tests: [
+      { args: [[1, 2, 3, 4], [[0, 3], [1, 2], [2, 2]]], expected: [10, 5, 3] },
+      { args: [[5, -2, 7], [[0, 0]]], expected: [5], miss: "prefix-sums.missing-zero-seed" },
+      { args: [[-3, 4, -1], [[0, 2], [1, 1], [2, 2]]], expected: [0, 4, -1] },
+      { args: [[9], []], expected: [] },
+      { label: "200k numbers, 200k long queries", argsCode: "[Array.from({ length: 200000 }, (_, i) => (i * 31) % 101 - 50), Array.from({ length: 200000 }, (_, i) => [(i * 7) % 1000, 199999 - (i * 13) % 1000])]", expectedCode: "(function () { const a = Array.from({ length: 200000 }, (_, i) => (i * 31) % 101 - 50); const p = new Array(a.length + 1).fill(0); for (let i = 0; i < a.length; i++) p[i + 1] = p[i] + a[i]; return Array.from({ length: 200000 }, (_, i) => p[199999 - (i * 13) % 1000 + 1] - p[(i * 7) % 1000]); })()", miss: "prefix-sums.recompute-per-query" }
+    ],
+    solution: `function rangeSums(nums, queries) {
+  const prefix = new Array(nums.length + 1).fill(0);
+  for (let i = 0; i < nums.length; i++) prefix[i + 1] = prefix[i] + nums[i];
+  return queries.map(([l, r]) => prefix[r + 1] - prefix[l]);
+}`,
+    explain: "`prefix[i]` is the sum of the first i numbers, so the array has n + 1 entries and starts with 0. The sum of `nums[l..r]` is `prefix[r + 1] - prefix[l]`, and the leading 0 is what makes a query starting at index 0 work. Building it is O(n) once, then each query is O(1). Looping over each range is O(n) per query, about 4 times 10^10 steps on the big test."
+  },
+  {
+    id: "a236", track: "algo", level: 2, topic: "Prefix sums", type: "code",
+    title: "Pivot index",
+    prompt: "Return the leftmost index where the sum of the numbers strictly to its left equals the sum of the numbers strictly to its right (an empty side sums to 0). Return -1 if there is none. Numbers can be negative. One test has 200,000 numbers, so recomputing both sums at every index will time out.",
+    fn: "pivotIndex",
+    starter: `function pivotIndex(nums) {
+
+}`,
+    hint: "Keep the total and a running left sum. The right sum at index i is total minus left minus nums[i].",
+    tests: [
+      { args: [[1, 7, 3, 6, 5, 6]], expected: 3 },
+      { args: [[1, 2, 3]], expected: -1 },
+      { args: [[2, 1, -1]], expected: 0, miss: "prefix-sums.missing-zero-seed" },
+      { args: [[1]], expected: 0, miss: "prefix-sums.missing-zero-seed" },
+      { args: [[-1, -1, 0, 1, 1, 0]], expected: 5 },
+      { args: [[]], expected: -1 },
+      { label: "200k numbers, pivot near the end", argsCode: "[Array.from({ length: 200000 }, (_, i) => i === 199999 ? 199998 : 1)]", expected: 199998, miss: "prefix-sums.recompute-per-query" }
+    ],
+    solution: `function pivotIndex(nums) {
+  let total = 0;
+  for (const x of nums) total += x;
+  let left = 0;
+  for (let i = 0; i < nums.length; i++) {
+    if (left === total - left - nums[i]) return i;
+    left += nums[i];
+  }
+  return -1;
+}`,
+    explain: "With the total known, the sum to the right of index i is `total - left - nums[i]`, so one running left sum is enough. The empty prefix counts as 0, which is why index 0 can be a pivot. That is O(n) with two passes, versus O(n squared) for summing both sides at every index."
+  },
+  {
+    id: "a238", track: "algo", level: 2, topic: "Design a structure", type: "code",
+    title: "Min stack",
+    prompt: "Simulate a stack that can also report its minimum. `ops` is a list of `['push', x]`, `['pop']`, `['top']` and `['getMin']`. Return an array with the result of every `top` and `getMin`, in order. `pop` and `top` are only called on a non-empty stack. Each operation should be O(1): one test has 100,000 pushes and 200,000 `getMin` calls, so scanning the stack each time will time out.",
+    fn: "minStackRun",
+    starter: `function minStackRun(ops) {
+  const out = [];
+  for (const [op, x] of ops) {
+
+  }
+  return out;
+}`,
+    hint: "Store with every pushed value the smallest value in the stack at that moment. Popping then restores the previous minimum automatically.",
+    tests: [
+      { args: [[['push', 3], ['push', 5], ['getMin'], ['push', 2], ['push', 1], ['getMin'], ['pop'], ['getMin'], ['pop'], ['top']]], expected: [3, 1, 2, 5], miss: "design.wrong-pattern" },
+      { args: [[['push', 1], ['push', 1], ['pop'], ['getMin']]], expected: [1], miss: "design.wrong-pattern" },
+      { args: [[['push', -2], ['push', 0], ['push', -3], ['getMin'], ['pop'], ['top'], ['getMin']]], expected: [-3, 0, -2] },
+      { args: [[]], expected: [] },
+      { label: "100k pushes, 200k getMin calls", argsCode: "[Array.from({ length: 100000 }, (_, i) => ['push', (i * 7919) % 100003 - 50000]).concat(Array.from({ length: 100000 }, () => ['getMin']), Array.from({ length: 50000 }, () => [['pop'], ['getMin']]).flat())]", expectedCode: "(function () { const v = Array.from({ length: 100000 }, (_, i) => (i * 7919) % 100003 - 50000); const sm = []; v.forEach((x, i) => sm.push(i ? Math.min(sm[i - 1], x) : x)); const out = new Array(100000).fill(sm[99999]); for (let j = 0; j < 50000; j++) out.push(sm[99999 - 1 - j]); return out; })()", miss: "design.too-slow" }
+    ],
+    solution: `function minStackRun(ops) {
+  const stack = [];
+  const out = [];
+  for (const [op, x] of ops) {
+    if (op === 'push') stack.push([x, stack.length ? Math.min(x, stack[stack.length - 1][1]) : x]);
+    else if (op === 'pop') stack.pop();
+    else if (op === 'top') out.push(stack[stack.length - 1][0]);
+    else out.push(stack[stack.length - 1][1]);
+  }
+  return out;
+}`,
+    explain: "Each stack entry stores its value together with the minimum of everything at or below it. The current minimum is then just the top entry's second number, and popping an entry brings back the previous minimum for free. Every operation is O(1) at the cost of O(n) extra memory. Tracking one `min` variable breaks after you pop the minimum, and rescanning the stack is O(n) per call."
+  },
+  {
+    id: "a326", track: "algo", level: 3, topic: "Heaps", type: "code",
+    title: "Last stone weight",
+    prompt: "Each round, take the two heaviest stones. If they weigh the same, both are destroyed; otherwise the lighter is destroyed and the heavier is replaced by a stone weighing the difference. Repeat until at most one stone is left. Return its weight, or 0 if none is left. One test has 100,000 stones, so sorting the whole list every round will time out.",
+    fn: "lastStoneWeight",
+    starter: `function lastStoneWeight(stones) {
+
+}`,
+    hint: "You only ever need the largest remaining stone, again and again, with new stones added in between. Which structure gives you the max cheaply?",
+    tests: [
+      { args: [[2, 7, 4, 1, 8, 1]], expected: 1 },
+      { args: [[1]], expected: 1 },
+      { args: [[2, 2]], expected: 0 },
+      { args: [[]], expected: 0 },
+      { args: [[2, 10, 9]], expected: 1, miss: "heaps.default-sort" },
+      { label: "100k stones", argsCode: "[Array.from({ length: 100000 }, (_, i) => (i * 7919) % 1000 + 1)]", expectedCode: "(function () { const c = new Array(1001).fill(0); for (let i = 0; i < 100000; i++) c[(i * 7919) % 1000 + 1]++; let hi = 1000; for (;;) { while (hi > 0 && c[hi] === 0) hi--; if (hi === 0) return 0; c[hi]--; const a = hi; let h2 = hi; while (h2 > 0 && c[h2] === 0) h2--; if (h2 === 0) return a; c[h2]--; if (a !== h2) c[a - h2]++; } })()", miss: "heaps.sort-everything" }
+    ],
+    solution: `function lastStoneWeight(stones) {
+  const h = [];
+  const push = x => {
+    h.push(x);
+    let i = h.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (h[p] >= h[i]) break;
+      [h[p], h[i]] = [h[i], h[p]];
+      i = p;
+    }
+  };
+  const pop = () => {
+    const top = h[0];
+    const last = h.pop();
+    if (h.length) {
+      h[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r = l + 1;
+        let m = i;
+        if (l < h.length && h[l] > h[m]) m = l;
+        if (r < h.length && h[r] > h[m]) m = r;
+        if (m === i) break;
+        [h[m], h[i]] = [h[i], h[m]];
+        i = m;
+      }
+    }
+    return top;
+  };
+  for (const s of stones) push(s);
+  while (h.length > 1) {
+    const a = pop(), b = pop();
+    if (a !== b) push(a - b);
+  }
+  return h.length ? h[0] : 0;
+}`,
+    explain: "Each round removes the two largest and may insert one new value, which is exactly what a max heap does in O(log n). The whole process is O(n log n). Re-sorting the list every round is O(n log n) per round, which is hopeless for 100,000 stones, and sorting numbers without a comparator compares them as text, so 10 would count as smaller than 2."
+  },
+  {
+    id: "a327", track: "algo", level: 3, topic: "Amortized analysis", type: "code",
+    title: "Cost of growing an array",
+    prompt: "A dynamic array starts empty with capacity 1. Pushing onto a full array allocates a bigger one and copies every current element into it. `growth` is either `'double'` (the capacity doubles) or a positive integer `s` (the capacity grows by `s`). Return the total number of element copies caused by `n` pushes. Compare the totals for the two policies as `n` grows.",
+    fn: "totalCopies",
+    starter: `function totalCopies(n, growth) {
+
+}`,
+    hint: "Simulate the pushes with a size and a capacity. When size equals capacity, add size to your copy count and grow the capacity. You do not need to copy any real data.",
+    tests: [
+      { args: [0, 'double'], expected: 0 },
+      { args: [1, 'double'], expected: 0 },
+      { args: [2, 'double'], expected: 1 },
+      { args: [5, 'double'], expected: 7 },
+      { args: [8, 'double'], expected: 7 },
+      { args: [9, 'double'], expected: 15 },
+      { args: [5, 1], expected: 10, miss: "complexity.worst-vs-amortized" },
+      { args: [10, 3], expected: 12, miss: "complexity.worst-vs-amortized" },
+      { label: "1,000,000 pushes with doubling", args: [1000000, 'double'], expected: 1048575, miss: "complexity.worst-vs-amortized" },
+      { label: "1,000,000 pushes growing by 1", args: [1000000, 1], expectedCode: "999999 + 1 * 999999 * 999998 / 2", miss: "complexity.nested-loop-cost" }
+    ],
+    solution: `function totalCopies(n, growth) {
+  let cap = 1, size = 0, copies = 0;
+  for (let i = 0; i < n; i++) {
+    if (size === cap) {
+      copies += size;
+      cap = growth === 'double' ? cap * 2 : cap + growth;
+    }
+    size++;
+  }
+  return copies;
+}`,
+    explain: "With doubling, copies happen at sizes 1, 2, 4, 8 and so on, which add up to less than 2n over n pushes, so each push costs O(1) amortized even though one push occasionally costs O(n). Growing by a fixed step copies about n squared divided by 2s elements in total, which is O(n squared) and why real arrays grow by a factor. Amortized means averaged over the whole sequence, not the cost of every single call."
+  },
+  {
+    id: "a328", track: "algo", level: 3, topic: "Tries", type: "code",
+    title: "Implement a trie",
+    prompt: "Simulate a trie of lowercase words. `ops` is a list of `['insert', word]`, `['search', word]` (true only if exactly this word was inserted) and `['startsWith', prefix]` (true if any inserted word begins with it). Return the results of every `search` and `startsWith`, in order. One test has 100,000 words and 100,000 queries, so scanning a list of all words for each query will time out.",
+    fn: "trieRun",
+    starter: `function trieRun(ops) {
+  const out = [];
+  for (const [op, w] of ops) {
+
+  }
+  return out;
+}`,
+    hint: "One node per character with a map of children. A node needs a flag that says a word ends here, because a prefix is not necessarily a word.",
+    tests: [
+      { args: [[['insert', 'apple'], ['search', 'apple'], ['search', 'app'], ['startsWith', 'app'], ['insert', 'app'], ['search', 'app']]], expected: [true, false, true, true], miss: "design.prefix-vs-word" },
+      { args: [[['search', 'a'], ['startsWith', 'a']]], expected: [false, false] },
+      { args: [[['insert', 'car'], ['startsWith', 'card'], ['search', 'cards'], ['search', 'ca']]], expected: [false, false, false], miss: "design.prefix-vs-word" },
+      { args: [[['insert', 'a'], ['insert', 'ab'], ['search', 'a'], ['startsWith', 'b']]], expected: [true, false] },
+      { label: "100k words, 100k queries that mostly miss", argsCode: "(function () { const w = i => ((i * 7919) % 1000003).toString(36); const ops = Array.from({ length: 100000 }, (_, i) => ['insert', w(i)]); for (let i = 0; i < 100000; i++) ops.push(i % 5 === 0 ? ['search', w(i)] : i % 2 ? ['search', w(i) + 'q'] : ['startsWith', w(i) + 'zz']); return [ops]; })()", expectedCode: "(function () { const w = i => ((i * 7919) % 1000003).toString(36); const words = new Set(), pre = new Set(); for (let i = 0; i < 100000; i++) { const s = w(i); words.add(s); for (let k = 1; k <= s.length; k++) pre.add(s.slice(0, k)); } const out = []; for (let i = 0; i < 100000; i++) out.push(i % 5 === 0 ? words.has(w(i)) : i % 2 ? words.has(w(i) + 'q') : pre.has(w(i) + 'zz')); return out; })()", miss: "design.too-slow" }
+    ],
+    solution: `function trieRun(ops) {
+  const root = {};
+  const out = [];
+  const walk = s => {
+    let node = root;
+    for (const ch of s) {
+      node = node.kids && node.kids.get(ch);
+      if (!node) return null;
+    }
+    return node;
+  };
+  for (const [op, w] of ops) {
+    if (op === 'insert') {
+      let node = root;
+      for (const ch of w) {
+        if (!node.kids) node.kids = new Map();
+        if (!node.kids.has(ch)) node.kids.set(ch, {});
+        node = node.kids.get(ch);
+      }
+      node.end = true;
+    } else if (op === 'search') {
+      const node = walk(w);
+      out.push(!!(node && node.end));
+    } else {
+      out.push(walk(w) !== null);
+    }
+  }
+  return out;
+}`,
+    explain: "Each character is one step down the tree, so insert, search and prefix search all cost O(length of the word), no matter how many words are stored. The end flag is what separates a word from a prefix: after inserting 'apple', the path for 'app' exists but only 'apple' is flagged. Scanning a list of all words for each query is O(words times length) per query."
   }
 ];
 
