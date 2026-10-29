@@ -13,6 +13,7 @@ test.before(async () => {
   db = new PGlite();
   await db.exec(read("supabase/test/auth-stub.sql"));
   await db.exec(read("supabase/migrations/20261023000000_init.sql"));
+  await db.exec(read("supabase/migrations/20261029000000_entitlement_functions.sql"));
   await db.exec(`
     insert into auth.users (id, email) values ('${A}', 'a@x.test'), ('${B}', 'b@x.test');
     insert into public.attempts (user_id, item_id, correct) values ('${A}', 'q1', true), ('${B}', 'q2', false);
@@ -112,4 +113,59 @@ test("service_role has_access: active true, revoked false, expired false", async
   await as(null, "service_role");
   assert.strictEqual((await rows(`select public.has_access('${A}') as ok`))[0].ok, false);
   assert.strictEqual((await rows(`select public.has_access('${B}') as ok`))[0].ok, true);
+});
+
+const C = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+const D = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+const grant = (u, session, pi = "pi_x") => db.query(`select public.grant_entitlement('${u}', '${session}', '${pi}', 'sprint_30', 30)`);
+const asService = () => as(null, "service_role");
+
+test("grant_entitlement creates a 30 day row", async () => {
+  await db.exec(`insert into auth.users (id, email) values ('${C}', 'c@x.test'), ('${D}', 'd@x.test')`);
+  await asService();
+  await grant(C, "cs_c1", "pi_c1");
+  const r = await rows(`select extract(epoch from expires_at - starts_at) / 86400 as d, product, stripe_payment_intent as pi from public.entitlements where user_id = '${C}'`);
+  assert.deepStrictEqual(r.map(x => [Number(x.d), x.product, x.pi]), [[30, "sprint_30", "pi_c1"]]);
+  assert.strictEqual((await rows(`select public.has_access('${C}') as ok`))[0].ok, true);
+});
+
+test("grant_entitlement is idempotent on the session id", async () => {
+  await asService();
+  await grant(C, "cs_c1", "pi_c1");
+  await grant(C, "cs_c1", "pi_c1");
+  assert.strictEqual((await rows(`select * from public.entitlements where user_id = '${C}'`)).length, 1);
+});
+
+test("a second session starts at the first one's expiry", async () => {
+  await asService();
+  await grant(C, "cs_c2", "pi_c2");
+  const r = await rows(`select stripe_session_id as s, starts_at, expires_at from public.entitlements where user_id = '${C}' order by id`);
+  assert.strictEqual(r.length, 2);
+  assert.strictEqual(+r[1].starts_at, +r[0].expires_at);
+  assert.strictEqual(Math.round((r[1].expires_at - r[1].starts_at) / 86400000), 30);
+});
+
+test("concurrent grants for one user stay consistent", async () => {
+  await asService();
+  await Promise.all([grant(D, "cs_d1", "pi_d1"), grant(D, "cs_d1", "pi_d1"), grant(D, "cs_d2", "pi_d2")]);
+  const r = await rows(`select stripe_session_id as s from public.entitlements where user_id = '${D}'`);
+  assert.deepStrictEqual(r.map(x => x.s).sort(), ["cs_d1", "cs_d2"]);
+});
+
+test("revoke_entitlement sets revoked_at and has_access turns false", async () => {
+  await asService();
+  assert.strictEqual((await rows("select public.revoke_entitlement('pi_d1') as n"))[0].n, 1);
+  assert.strictEqual((await rows("select public.revoke_entitlement('pi_d1') as n"))[0].n, 0);
+  assert.strictEqual((await rows(`select count(*)::int as n from public.entitlements where stripe_payment_intent = 'pi_d1' and revoked_at is not null`))[0].n, 1);
+  await db.exec(`update public.entitlements set revoked_at = now() where user_id = '${D}'`);
+  assert.strictEqual((await rows(`select public.has_access('${D}') as ok`))[0].ok, false);
+});
+
+test("grant and revoke are not executable by authenticated or anon", async () => {
+  for (const [uid, role] of [[A, "authenticated"], [null, "anon"]]) {
+    await as(uid, role);
+    await assert.rejects(grant(A, "cs_evil"), /permission denied/);
+    await assert.rejects(db.query("select public.revoke_entitlement('pi_x')"), /permission denied/);
+    await db.exec("reset role");
+  }
 });

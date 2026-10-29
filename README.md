@@ -30,6 +30,23 @@ The app works without an account, with progress in your browser. To add sign-in 
 
 Without `config.js` nothing account related loads. With it, the page loads `@supabase/supabase-js` 2.117.1 from jsDelivr.
 
+## Payments (Sprint Pass, test mode first)
+
+A 30 day Sprint Pass is sold through Stripe Checkout (`mode: "payment"`). Access is granted only by the webhook, never by the success page, and stored in the `entitlements` table. Buying again extends access from the current expiry. A full refund or a dispute revokes it.
+
+Server routes live in `api/`: `checkout.js` (needs a Supabase access token), `stripe-webhook.js` and `access.js`.
+
+1. Run both migrations in `supabase/migrations/`.
+2. In Stripe (test mode), create a one-time Price for the pass.
+3. Use a restricted key (`rk_test_...`) instead of the full secret key, with only Checkout Sessions: write and Prices: read. Store it, and every other value below, in Vercel environment variables. Never commit them. `.env.example` lists the names.
+4. Create a webhook endpoint at `<APP_URL>/api/stripe-webhook` listening for exactly these events:
+   - `checkout.session.completed`
+   - `checkout.session.async_payment_succeeded`
+   - `checkout.session.async_payment_failed` (logged only)
+   - `charge.refunded`
+   - `charge.dispute.created`
+5. Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_SPRINT`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `APP_URL` (no trailing slash). The service role key bypasses RLS, so keep it server side only.
+
 ## Run locally
 
 No build step. Any static server works (the code runner uses a Web Worker, so opening the file directly won't run code):
@@ -60,6 +77,8 @@ Option B, GitHub: push this folder to a repo, then on vercel.com click Add New >
 - `patterns.js`: the algorithm patterns and their misconception tags
 - `core.js`: learning logic (misses, schedule, readiness, session)
 - `auth.js`: optional Supabase sign-in and sync
+- `api/`: checkout, Stripe webhook and access check (Vercel functions)
+- `.env.example`: server environment variable names
 - `config.example.js`: template for `config.js`
 - `supabase/`: the migration and the test bootstrap for it
 - `app.js`: the UI
