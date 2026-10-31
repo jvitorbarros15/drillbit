@@ -288,6 +288,20 @@ test("schedule current is weak first, then pattern order", () => {
   assert.deepStrictEqual([cur().current, cur().remaining], ["pa", 1], "a pattern due for review is back in the plan");
 });
 
+test("a chosen company's focus patterns come after weak spots", () => {
+  const c = { ...ctx, companies: [{ id: "acme", name: "Acme", focus: ["pc"] }] };
+  const s = st();
+  assert.strictEqual(C.schedule(s, c, T).current, "pa");
+  s.profile.company = { id: "acme", name: "Acme" };
+  assert.strictEqual(C.schedule(s, c, T).current, "pc");
+  assert.strictEqual(C.companyOf(s, c).name, "Acme");
+  s.diagnostic = { at: T, results: { pb: { correct: 0, total: 1 } } };
+  assert.strictEqual(C.schedule(s, c, T).current, "pb", "a diagnosed weak spot still comes first");
+  s.profile.company = { id: "other", name: "Some startup" };
+  assert.strictEqual(C.companyOf(s, c), null);
+  assert.strictEqual(C.schedule(s, ctx, T).current, "pb", "no companies in ctx is fine");
+});
+
 test("composeSession in the learn phase falls back to recognition", () => {
   const s = st();
   const a = C.composeSession(s, ctx, T);
@@ -405,7 +419,7 @@ test("migrate from v1", () => {
     daily: { date: "2026-03-09" }, drafts: { ca1: "code" }, read: { big: 1 }
   };
   assert.deepStrictEqual(C.migrate(v1), {
-    v: 3, profile: { interviewDate: null, language: "js" }, diagnostic: null,
+    v: 3, profile: { interviewDate: null, language: "js", company: null }, diagnostic: null,
     items: { qa1: { seen: 3, correct: 2, wrong: 1, last: "2026-03-09", hinted: false, clean: 0 } },
     misses: {}, patterns: {}, streak: 4, best: 9, freezes: 1, lastDone: "2026-03-09",
     days: { "2026-03-09": { answered: 5, correct: 4 }, "2026-03-08": { answered: 1, correct: 1, frozen: true } },
@@ -423,7 +437,7 @@ test("migrate from v2 drops one-answer mastery and marks the state legacy", () =
 test("migrate keeps v3 and rejects garbage", () => {
   const s = rec(st(), { lessonId: "qa1", correct: false, tag: "pa.m1" });
   assert.deepStrictEqual(C.migrate(JSON.parse(JSON.stringify(s))), s);
-  assert.deepStrictEqual(C.migrate({ v: 2, streak: 3 }).profile, { interviewDate: null, language: "js" });
+  assert.deepStrictEqual(C.migrate({ v: 2, streak: 3 }).profile, { interviewDate: null, language: "js", company: null });
   for (const g of [null, undefined, 5, "x", [], {}, { v: 99 }, { v: 1.5 }]) assert.deepStrictEqual(C.migrate(g), C.blankState());
   const odd = C.migrate({ v: 1, streak: "x", items: { a: 5, b: { seen: "q" } }, days: [] });
   assert.deepStrictEqual([odd.streak, odd.items.a, odd.items.b.seen], [0, undefined, 0]);

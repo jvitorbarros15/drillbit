@@ -35,7 +35,7 @@
   // ---------- state ----------
   // legacy: counters predate the event log, so sync falls back to a field merge once.
   const blankState = () => ({
-    v: 3, profile: { interviewDate: null, language: "js" }, diagnostic: null,
+    v: 3, profile: { interviewDate: null, language: "js", company: null }, diagnostic: null,
     items: {}, misses: {}, patterns: {}, streak: 0, best: 0, freezes: 0, lastDone: null, days: {}, drafts: {}, read: {},
     events: [], legacy: false, owner: null, repair: null
   });
@@ -251,6 +251,12 @@
     });
   }
 
+  // ctx.companies is optional. A chosen company's focus patterns come right after the diagnosed weak spots.
+  function companyOf(state, ctx) {
+    const c = state.profile && state.profile.company;
+    return (c && (ctx.companies || []).find(x => x.id === c.id)) || null;
+  }
+
   function schedule(state, ctx, today) {
     const date = state.profile && state.profile.interviewDate;
     const daysLeft = date ? diffDays(date, today) : null;
@@ -258,7 +264,9 @@
     const open = readiness(state, ctx, today).filter(r => r.hasContent && r.status !== "ready");
     const res = (state.diagnostic && state.diagnostic.results) || {};
     const weak = r => res[r.id] && res[r.id].correct < res[r.id].total;
-    const current = (open.find(weak) || open[0] || {}).id || null;
+    const comp = companyOf(state, ctx);
+    const focus = r => !!comp && comp.focus.includes(r.id);
+    const current = (open.find(weak) || open.find(focus) || open[0] || {}).id || null;
     return { daysLeft, phase, current, remaining: open.length };
   }
 
@@ -350,7 +358,9 @@
       if (r) add({ kind: "review", lessonId: r.lessonId, tag: r.tag });
     }
     const rank = { shaky: 0, learning: 1, new: 2 };
-    const order = open.slice().sort((a, b) => rank[a.status] - rank[b.status]);
+    const comp = companyOf(state, ctx);
+    const focused = r => (comp && comp.focus.includes(r.id) ? 0 : 1);
+    const order = open.slice().sort((a, b) => rank[a.status] - rank[b.status] || focused(a) - focused(b));
     for (let pass = 0; pass < 3 && out.length < 3; pass++)
       for (const r of order) {
         if (out.length >= 3) break;
@@ -471,7 +481,7 @@
 
   const CORE = {
     fmt, parse, addDays, diffDays, seededRng, blankState, migrate, patternOf, inferMiss, recordAttempt,
-    dueTags, pickReview, readiness, schedule, buildDiagnostic, recordDiagnostic, composeSession, mergeProgress, queueRows, sessionsDone, patternLocked, STALE_DAYS
+    dueTags, pickReview, readiness, schedule, companyOf, buildDiagnostic, recordDiagnostic, composeSession, mergeProgress, queueRows, sessionsDone, patternLocked, STALE_DAYS
   };
   if (typeof module !== "undefined") module.exports = CORE;
   else window.CORE = CORE;
