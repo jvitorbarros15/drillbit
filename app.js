@@ -9,6 +9,7 @@
   const PASS_PRICE = "$29";
   const FREE_SESSIONS = 3;
   const PATTERNS = window.PATTERNS;
+  const COMPANIES = window.COMPANIES || [];
   const PAT_BY_ID = Object.fromEntries(PATTERNS.map(p => [p.id, p]));
   const MISC = {};
   PATTERNS.forEach(p => p.misconceptions.forEach(m => (MISC[m.id] = m)));
@@ -20,8 +21,8 @@
     GUIDE_BY_ID = Object.fromEntries(GUIDES.map(g => [g.id, g]));
     GUIDE_FOR = {};
     GUIDES.forEach(g => g.topics.forEach(t => (GUIDE_FOR[t] = g)));
-    ctx = { lessons: LESSONS, patterns: PATTERNS, guides: GUIDES };
-    sctx = gated() ? { lessons: LESSONS.filter(l => META.freePatterns.includes(CORE.patternOf(l, ctx))), patterns: PATTERNS, guides: GUIDES } : ctx;
+    ctx = { lessons: LESSONS, patterns: PATTERNS, guides: GUIDES, companies: COMPANIES };
+    sctx = gated() ? { lessons: LESSONS.filter(l => META.freePatterns.includes(CORE.patternOf(l, ctx))), patterns: PATTERNS, guides: GUIDES, companies: COMPANIES } : ctx;
   }
   indexContent();
   const KEY = "drillbit.v2";
@@ -209,9 +210,10 @@
   function renderChips() {
     const doneToday = S.lastDone === today();
     const left = CORE.schedule(S, ctx, today()).daysLeft;
+    const co = S.profile.company;
     const date = left !== null && left > 0
-      ? `<button class="chip" data-act="set-date" title="Change interview date"><b>${left}</b> day${left > 1 ? "s" : ""} to interview</button>`
-      : `<button class="chip" data-act="set-date">Set interview date</button>`;
+      ? `<button class="chip" data-act="interview" title="Interview details"><b>${left}</b> day${left > 1 ? "s" : ""} to ${co ? esc(co.name) + " " : ""}interview</button>`
+      : `<button class="chip" data-act="interview">Set interview</button>`;
     $("#chips").innerHTML = `
       <span class="chip flame ${doneToday ? "lit" : ""}" title="Day streak">${flameSvg()}<b>${S.streak}</b></span>
       <span class="chip ice" title="Streak freezes">${iceSvg()}<b>${S.freezes}</b></span>
@@ -283,6 +285,78 @@
   }
   const flameSvg = () => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-6 1-9.5z"/></svg>`;
   const iceSvg = () => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 2 3-2M9 20l3-2 3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+
+  // ---------- interview: date, company, and what the company publishes about its process ----------
+  const companyById = id => COMPANIES.find(c => c.id === id) || null;
+  function interviewFields() {
+    const co = S.profile.company;
+    const sel = co ? co.id : "";
+    return `
+      <div class="iv-fields">
+        <label class="iv-field">Interview date<input id="iv-date" class="date-input" type="date" value="${S.profile.interviewDate || ""}" /></label>
+        <label class="iv-field">Company<select id="iv-company" class="date-input">
+          <option value="" ${sel ? "" : "selected"}>Not sure yet</option>
+          ${COMPANIES.map(c => `<option value="${c.id}" ${sel === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}
+          <option value="other" ${sel === "other" ? "selected" : ""}>Other</option>
+        </select></label>
+        <label class="iv-field iv-other ${sel === "other" ? "" : "hidden"}">Company name<input id="iv-other" class="date-input" type="text" maxlength="60" value="${sel === "other" ? esc(co.name) : ""}" /></label>
+      </div>`;
+  }
+  function readInterview() {
+    const date = $("#iv-date").value || null;
+    const id = $("#iv-company").value;
+    const other = ($("#iv-other").value || "").trim();
+    const c = companyById(id);
+    S.profile.interviewDate = date;
+    S.profile.company = c ? { id: c.id, name: c.name } : id === "other" && other ? { id: "other", name: other } : null;
+    save();
+    ANALYTICS.track("interview_set", { company: S.profile.company ? S.profile.company.id : null, hasDate: !!date });
+  }
+  function companyCard(id) {
+    const c = companyById(id);
+    if (!c) return id === "other"
+      ? `<div class="panel"><p class="muted">We don't have a profile for this company. Your plan stays balanced and starts from your weak spots. Ask your recruiter what each round covers.</p></div>`
+      : "";
+    return `
+      <section class="panel company">
+        <div class="panel-head"><h3>What ${esc(c.name)} says about its interviews</h3><span class="muted small">checked ${shortDate(c.checked)}</span></div>
+        <p>${esc(c.summary)}</p>
+        <ul class="diag-list">${c.facts.map(f => `<li>${esc(f.text)} <a class="link src" href="${esc(c.sources[f.source].url)}" target="_blank" rel="noopener">source</a></li>`).join("")}</ul>
+        ${c.focusNote ? `<p class="muted small">${esc(c.focusNote)}</p>` : ""}
+        <p class="muted small">Only from ${esc(c.name)}'s own pages. Formats change, so confirm with your recruiter.</p>
+      </section>`;
+  }
+  function renderInterview() {
+    run = null; cur = null;
+    setNav("");
+    renderChips();
+    app.innerHTML = `
+      <section class="learn-head">
+        <p class="eyebrow">Interview</p>
+        <h1>When and where?</h1>
+        <p class="muted">The date sets the pace of your plan. The company moves the patterns it names to the front, right after your weak spots.</p>
+      </section>
+      <section class="panel">
+        ${interviewFields()}
+        <div class="hero-cta"><button class="btn primary" data-act="save-interview">Save</button></div>
+      </section>
+      <div id="iv-card">${companyCard(S.profile.company && S.profile.company.id)}</div>`;
+  }
+  function interviewCard() {
+    const co = S.profile.company;
+    if (!co) return "";
+    const c = companyById(co.id);
+    const left = CORE.schedule(S, ctx, today()).daysLeft;
+    return `
+      <section class="panel study algo">
+        <div>
+          <p class="eyebrow">${left !== null && left > 0 ? `${left} day${left > 1 ? "s" : ""} to go` : "Interview"}</p>
+          <h3>${esc(co.name)}</h3>
+          <p class="muted small">${c ? esc(c.summary) : "No company profile, so your plan stays balanced."}</p>
+        </div>
+        <div class="hero-cta"><button class="btn ghost" data-act="interview">What to expect</button></div>
+      </section>`;
+  }
 
   // ---------- home ----------
   function heatmap() {
@@ -541,6 +615,7 @@
       </section>` : ""}
 
       ${repairPanel()}
+      ${interviewCard()}
       ${readinessPanel()}
 
       <section class="panel">
@@ -811,6 +886,7 @@
     else if (h === "practice") renderPractice();
     else if (h === "account") renderAccount();
     else if (h === "pass") renderPass();
+    else if (h === "interview") renderInterview();
     else renderHome();
     window.scrollTo(0, 0);
   }
@@ -1227,8 +1303,8 @@
         ${AUTH.enabled && !AUTH.user() ? authBox() : ""}
         <div class="panel">
           <h3>Your first session is ready</h3>
-          <p class="muted small">Interview date (optional). It sets the pace of your plan.</p>
-          <input id="idate" class="date-input" type="date" aria-label="Interview date" value="${S.profile.interviewDate || ""}" />
+          <p class="muted small">Interview date and company (optional). They set the pace and focus of your plan.</p>
+          ${interviewFields()}
         </div>
         <div class="hero-cta center">
           <button class="btn primary big" data-act="diag-start">Start session</button>
@@ -1321,8 +1397,7 @@
       case "mark-read": markRead(GUIDE_BY_ID[el.dataset.id]); break;
       case "diag": startDiagnostic(); window.scrollTo(0, 0); break;
       case "diag-start": {
-        const v = $("#idate").value;
-        if (v) { S.profile.interviewDate = v; save(); }
+        readInterview();
         startSession(); window.scrollTo(0, 0); break;
       }
       case "session": startSession(); window.scrollTo(0, 0); break;
@@ -1361,13 +1436,8 @@
         el.disabled = true;
         AUTH.sync().then(() => { if (location.hash === "#account") renderAccount(); if (!AUTH.syncFailed()) toast("Synced."); });
         break;
-      case "set-date": {
-        el.outerHTML = `<input class="chip date-input" type="date" id="chip-date" aria-label="Interview date" value="${S.profile.interviewDate || ""}" />`;
-        const inp = $("#chip-date");
-        inp.focus();
-        try { inp.showPicker(); } catch (err) { /* needs a gesture */ }
-        break;
-      }
+      case "interview": go("#interview"); break;
+      case "save-interview": readInterview(); renderInterview(); toast("Saved."); break;
       case "practice":
         if (el.classList.contains("locked")) { toast(`Clear ${Math.round(UNLOCK * 100)}% of the level below to unlock this one.`); return; }
         startLevel(el.dataset.track, Number(el.dataset.level)); window.scrollTo(0, 0); break;
@@ -1402,13 +1472,12 @@
   });
 
   document.addEventListener("change", e => {
-    if (e.target.id !== "chip-date") return;
-    S.profile.interviewDate = e.target.value || null;
-    save();
-    renderChips();
-    if (!run && (!location.hash || location.hash === "#practice")) route();
+    if (e.target.id !== "iv-company") return;
+    const other = document.querySelector(".iv-other");
+    if (other) other.classList.toggle("hidden", e.target.value !== "other");
+    const card = $("#iv-card");
+    if (card) card.innerHTML = companyCard(e.target.value);
   });
-  document.addEventListener("focusout", e => { if (e.target.id === "chip-date") renderChips(); });
 
   document.addEventListener("keydown", e => {
     if (!cur || !run || !cur.item) return;

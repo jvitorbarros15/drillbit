@@ -373,3 +373,8 @@ pre.sol code { background: none; border: 0; padding: 0; font-size: inherit; }
 .legal .foot { margin-top: 32px; }
 .diag-list { margin: 0 0 10px; padding-left: 20px; }
 .diag-list li { margin-bottom: 6px; }
+
+.iv-fields { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.iv-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+.hidden { display: none !important; }
+.company .src { font-size: 0.78rem; }

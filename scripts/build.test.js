@@ -31,7 +31,7 @@ test("build output has the free bundle and none of the paid text", () => {
   for (const g of S.paidGuides) assert.ok(!text.includes(JSON.stringify(g.body)), g.id + " body");
   assert.ok(!fs.existsSync(path.join(out, "data.js")));
   assert.ok(!fs.existsSync(path.join(out, "guides.js")));
-  for (const f of ["index.html", "styles.css", "learn.css", "viz.js", "anim.js", "trace.js", "patterns.js", "core.js", "auth.js", "analytics.js", "app.js", "terms.html", "privacy.html", "refund.html"]) assert.ok(fs.existsSync(path.join(out, f)), f);
+  for (const f of ["index.html", "styles.css", "learn.css", "viz.js", "anim.js", "trace.js", "patterns.js", "companies.js", "core.js", "auth.js", "analytics.js", "app.js", "terms.html", "privacy.html", "refund.html"]) assert.ok(fs.existsSync(path.join(out, f)), f);
 });
 
 test("every free and diagnostic lesson is present", () => {
