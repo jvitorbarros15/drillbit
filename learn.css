@@ -158,3 +158,37 @@ select.viz-input { width: auto; }
   .cell b { font-size: 0.8rem; padding: 6px 3px; }
   .viz-count { margin-left: 0; }
 }
+
+/* ---------- execution walkthrough player ---------- */
+.watch-ref { margin: 0 0 12px; }
+.anim { margin: 12px 0 16px; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.anim:focus-visible { outline: 2px solid var(--sd); outline-offset: 2px; }
+.anim-stage { overflow-x: auto; overflow-y: hidden; }
+.anim-svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.anim-svg text { fill: var(--text); font: 600 13px var(--mono); text-anchor: middle; }
+.anim-svg text.an-idx { fill: var(--muted); font-size: 10px; font-weight: 400; }
+.anim-svg text.an-side { text-anchor: start; }
+.anim-svg text.an-side-r { text-anchor: end; }
+.anim-svg text.an-in { fill: var(--muted); }
+.an-cell, .an-slot { transform-box: fill-box; transform-origin: center; }
+.an-cell rect, .an-slot rect { fill: var(--panel2); stroke: var(--line2); stroke-width: 1.5; }
+.an-cell.on rect { stroke: var(--sd); fill: rgba(94,231,255,0.1); }
+.an-cell.in rect { stroke: var(--sd); fill: rgba(94,231,255,0.14); }
+.an-cell.mid rect, .an-cell.cur rect, .an-slot.top rect { stroke: var(--gold); fill: rgba(255,209,102,0.16); }
+.an-cell.mid text, .an-cell.cur text, .an-slot.top text { fill: var(--gold); }
+.an-cell.hit rect { stroke: var(--good); fill: rgba(61,220,151,0.2); }
+.an-cell.hit text { fill: var(--good); }
+.an-win { fill: rgba(94,231,255,0.1); transform-origin: 0 0; }
+.an-ptr { transform-origin: 0 0; }
+.an-ptr polygon { fill: currentColor; }
+.an-ptr text { fill: currentColor; font-size: 12px; }
+.an-ptr.p0 { color: var(--sd); }
+.an-ptr.p1 { color: var(--gold); }
+.an-ptr.p2 { color: var(--violet); }
+.an-ptr.p3 { color: var(--good); }
+.an-base { stroke: var(--line2); stroke-width: 2; }
+.anim-vals { display: flex; gap: 6px 18px; flex-wrap: wrap; min-height: 1.6em; margin: 10px 0 12px; font: 0.85rem var(--mono); color: var(--muted); }
+.anim-vals b { color: var(--gold); font-weight: 600; margin-right: 4px; }
+.anim-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.anim-scrub { flex: 1; min-width: 110px; accent-color: var(--algo); }
+.anim-count { font-family: var(--mono); white-space: nowrap; }

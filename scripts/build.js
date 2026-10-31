@@ -3,7 +3,7 @@ const path = require("node:path");
 const { split } = require("../api/_lib/split.js");
 
 const ROOT = path.join(__dirname, "..");
-const COPY = ["index.html", "styles.css", "learn.css", "viz.js", "patterns.js", "core.js", "auth.js", "analytics.js", "app.js", "terms.html", "privacy.html", "refund.html"];
+const COPY = ["index.html", "styles.css", "learn.css", "viz.js", "anim.js", "trace.js", "patterns.js", "core.js", "auth.js", "analytics.js", "app.js", "terms.html", "privacy.html", "refund.html"];
 
 function build(out = process.env.BUILD_OUT || process.argv[2] || path.join(ROOT, "public"), env = process.env) {
   out = path.resolve(out);

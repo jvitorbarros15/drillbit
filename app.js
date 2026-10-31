@@ -163,6 +163,38 @@
     });
   }
 
+  const TRACE_WORKER_SRC = `
+    self.onmessage = (e) => {
+      const { url, code, fn, args, watch } = e.data;
+      try { importScripts(url); self.postMessage(self.TRACE.run(code, fn, args, watch)); }
+      catch (err) { self.postMessage({ error: String(err && err.message || err) }); }
+    };`;
+  let traceWorkerUrl = null;
+  function traceInWorker(code, item, args, watch) {
+    if (!traceWorkerUrl) traceWorkerUrl = URL.createObjectURL(new Blob([TRACE_WORKER_SRC], { type: "text/javascript" }));
+    return new Promise(resolve => {
+      let w;
+      try { w = new Worker(traceWorkerUrl); } catch (e) { resolve({ error: "Your browser blocked the code runner." }); return; }
+      const timer = setTimeout(() => { w.terminate(); resolve({ error: `Time limit exceeded (${TIME_LIMIT / 1000}s).` }); }, TIME_LIMIT);
+      w.onmessage = e => { clearTimeout(timer); w.terminate(); resolve(e.data); };
+      w.onerror = e => { clearTimeout(timer); w.terminate(); e.preventDefault(); resolve({ error: e.message || "Runtime error" }); };
+      w.postMessage({ url: new URL("trace.js", location.href).href, code, fn: item.fn, args, watch });
+    });
+  }
+
+  async function watchReference() {
+    const item = cur && cur.item, box = $("#watch");
+    if (!item || !item.viz || !box) return;
+    const btn = document.querySelector('[data-act="watch-ref"]');
+    btn.disabled = true;
+    const t = item.tests.find(x => x.args);
+    const res = await traceInWorker(item.solution, item, t.args, item.viz.watch);
+    btn.disabled = false;
+    if (!cur || cur.item !== item || !document.body.contains(box)) return;
+    if (res.error || !res.steps.length) { toast(res.error || "Nothing to show for this one."); return; }
+    ANIM.player(box, { steps: res.steps, view: item.viz, input: t.args[item.viz.arrayArg], result: res.result, truncated: res.truncated });
+  }
+
   // ---------- toast ----------
   let toastTimer;
   function toast(text) {
@@ -1015,6 +1047,7 @@
         ${cur.extra ? `<p class="fb-extra">${esc(cur.extra)}</p>` : ""}
         ${m ? `<div class="hint"><strong>${esc(m.label)}</strong><br>${esc(m.fix)}</div>` : ""}
         <p>${rich(item.explain)}</p>
+        ${item.type === "code" && item.viz ? `<button class="btn ghost small watch-ref" data-act="watch-ref">Watch the reference solution</button><div id="watch"></div>` : ""}
         ${item.type === "code" ? `<details ${correct ? "" : "open"}><summary>Reference solution</summary><pre class="sol"><code>${esc(item.solution)}</code></pre></details>` : ""}
         ${cur.asking ? `
           <p><strong>What went wrong?</strong></p>
@@ -1177,6 +1210,7 @@
       }
       case "session": startSession(); window.scrollTo(0, 0); break;
       case "concept-next": conceptNext(); break;
+      case "watch-ref": watchReference(); break;
       case "sign-in": go("#account"); break;
       case "pass": go("#pass"); break;
       case "save-reminder": {

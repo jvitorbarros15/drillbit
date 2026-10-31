@@ -79,6 +79,7 @@ const LESSONS = [
   }
   return stack.length === 0;
 }`,
+    viz: { view: "stack", watch: ["stack"] },
     explain: "A stack mirrors nesting: push openers, pop on closers, check that the pop matches. Parsers, undo history and the call stack itself all run on this idea."
   },
   {
@@ -154,6 +155,7 @@ const LESSONS = [
   }
   return lo;
 }`,
+    viz: { view: "binary-search", watch: ["lo", "hi", "target"], pointers: ["lo", "hi"], arrayArg: 0 },
     explain: "This is lower_bound, the one binary search variant worth memorizing. The half-open range removes most off-by-one bugs. It powers 'first event after timestamp X', range queries and cursor pagination."
   },
   {
@@ -192,6 +194,7 @@ const LESSONS = [
   }
   return best;
 }`,
+    viz: { view: "array-pointers", watch: ["start", "i", "best"], pointers: ["start", "i"], window: ["start", "i"], arrayArg: 0 },
     explain: "Store each character's last index and move the left edge past repeats. The 'abba' case catches people who forget to check the old index is still inside the window. Same shape as rolling rate limit windows and streaming dedupe."
   },
   {
@@ -1127,6 +1130,7 @@ const LESSONS = [
   }
   return [];
 }`,
+    viz: { view: "array-pointers", watch: ["i", "j"], pointers: ["i", "j"], window: ["i", "j"], arrayArg: 0 },
     explain: "Sorted input is a gift. If the sum is too small, the left number can't be part of any answer with a smaller right number, so it's safe to drop it. Each step discards one candidate, giving O(n) time and O(1) space, better on memory than the hash map version of Two Sum."
   },
   {
@@ -1193,6 +1197,7 @@ const LESSONS = [
   for (const x of nums) [prev, cur] = [cur, Math.max(cur, prev + x)];
   return cur;
 }`,
+    viz: { view: "dp-table", watch: ["cur", "prev"], arrayArg: 0 },
     explain: "The recurrence is best(i) = max(best(i-1), best(i-2) + nums[i]). Naive recursion is exponential, memoizing makes it O(n), and noticing you only need two previous values gets space down to O(1). That progression is the whole DP playbook in miniature."
   },
   {

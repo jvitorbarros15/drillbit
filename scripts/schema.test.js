@@ -49,3 +49,28 @@ test("miss tags", () => {
   bad(validateLesson, { ...mcq, miss: "p.x" });
   bad(validateLesson, { ...multi, misses: [null, null, null] });
 });
+
+test("viz specs", () => {
+  const ok = v => assert.deepStrictEqual(validateLesson({ ...code, viz: v }), []);
+  const no = v => bad(validateLesson, { ...code, viz: v });
+  ok({ view: "array-pointers", watch: ["l", "r"], pointers: ["l", "r"], window: ["l", "r"], arrayArg: 0 });
+  ok({ view: "binary-search", watch: ["lo", "hi"], pointers: ["lo", "hi"], arrayArg: 1 });
+  ok({ view: "stack", watch: ["stack"] });
+  ok({ view: "dp-table", watch: ["dp"], arrayArg: 0 });
+  no("stack");
+  no({ view: "graph", watch: ["a"] });
+  no({ view: "stack" });
+  no({ view: "stack", watch: [] });
+  no({ view: "stack", watch: ["a b"] });
+  no({ view: "stack", watch: ["a", "a"] });
+  no({ view: "stack", watch: ["a"], extra: 1 });
+  no({ view: "stack", watch: ["a"], pointers: ["a"] });
+  no({ view: "array-pointers", watch: ["l"], pointers: ["l"] });
+  no({ view: "array-pointers", watch: ["l"], pointers: ["r"], arrayArg: 0 });
+  no({ view: "array-pointers", watch: ["l", "r"], window: ["l"], arrayArg: 0 });
+  no({ view: "array-pointers", watch: ["l", "r"], window: ["l", "x"], arrayArg: 0 });
+  no({ view: "binary-search", watch: ["lo"], window: ["lo", "lo"], arrayArg: 0 });
+  no({ view: "dp-table", watch: ["dp"], arrayArg: -1 });
+  no({ view: "dp-table", watch: ["dp"], arrayArg: 1.5 });
+  bad(validateLesson, { ...mcq, viz: { view: "stack", watch: ["a"] } });
+});

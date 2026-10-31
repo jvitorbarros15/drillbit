@@ -4,7 +4,10 @@ const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const isObj = v => v && typeof v === "object" && !Array.isArray(v);
 
 const COMMON = ["id", "track", "level", "topic", "type", "title", "prompt", "explain", "hint"];
-const EXTRA = { mcq: ["options", "answer", "misses"], multi: ["options", "answers", "miss"], number: ["answer", "min", "max", "unit", "miss"], code: ["fn", "starter", "solution", "tests"] };
+const EXTRA = { mcq: ["options", "answer", "misses"], multi: ["options", "answers", "miss"], number: ["answer", "min", "max", "unit", "miss"], code: ["fn", "starter", "solution", "tests", "viz"] };
+const VIZ_KEYS = ["view", "watch", "pointers", "window", "arrayArg"];
+const VIZ_VIEWS = ["array-pointers", "stack", "dp-table", "binary-search"];
+const IDENT = /^[A-Za-z_$][\w$]*$/;
 const TEST_KEYS = ["args", "argsCode", "expected", "expectedCode", "label", "miss"];
 
 function validateLesson(l) {
@@ -39,6 +42,7 @@ function validateLesson(l) {
   } else {
     if (!str(l.fn) || !/^[A-Za-z_$][\w$]*$/.test(l.fn)) e.push("fn must be a valid JS identifier");
     for (const k of ["starter", "solution"]) if (!str(l[k])) e.push(`${k} must be a non-empty string`);
+    if (has(l, "viz")) e.push(...validateViz(l.viz));
     if (!Array.isArray(l.tests) || !l.tests.length) e.push("tests must be a non-empty array");
     else l.tests.forEach((t, i) => {
       const p = `tests[${i}]`;
@@ -55,6 +59,27 @@ function validateLesson(l) {
       if (has(t, "miss") && !str(t.miss)) e.push(`${p}.miss must be a non-empty string`);
     });
   }
+  return e;
+}
+
+function validateViz(v) {
+  if (!isObj(v)) return ["viz must be an object"];
+  const e = [];
+  for (const k of Object.keys(v)) if (!VIZ_KEYS.includes(k)) e.push(`viz unknown key ${k}`);
+  if (!VIZ_VIEWS.includes(v.view)) e.push(`viz.view must be one of ${VIZ_VIEWS.join(", ")}`);
+  const names = a => Array.isArray(a) && a.every(x => typeof x === "string" && IDENT.test(x));
+  const watch = names(v.watch) && v.watch.length && new Set(v.watch).size === v.watch.length ? v.watch : null;
+  if (!watch) e.push("viz.watch must be a non-empty array of unique identifiers");
+  const pointed = v.view === "array-pointers" || v.view === "binary-search";
+  if (has(v, "pointers")) {
+    if (!pointed) e.push("viz.pointers only applies to array-pointers and binary-search");
+    else if (!names(v.pointers) || !v.pointers.length || (watch && !v.pointers.every(p => watch.includes(p)))) e.push("viz.pointers must be a non-empty array of watched names");
+  }
+  if (has(v, "window")) {
+    if (v.view !== "array-pointers") e.push("viz.window only applies to array-pointers");
+    else if (!names(v.window) || v.window.length !== 2 || (watch && !v.window.every(p => watch.includes(p)))) e.push("viz.window must be two watched names");
+  }
+  if (has(v, "arrayArg") ? !Number.isInteger(v.arrayArg) || v.arrayArg < 0 : pointed) e.push("viz.arrayArg must be a non-negative integer argument index" + (pointed ? " (required for this view)" : ""));
   return e;
 }
 
