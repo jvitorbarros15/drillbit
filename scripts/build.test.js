@@ -45,6 +45,27 @@ test("every free and diagnostic lesson is present", () => {
   assert.strictEqual(win.LESSONS.length + S.paidLessons.length, lessons.length);
 });
 
+test("each paid pattern the diagnostic tests has a free recognition item and a free coding problem", () => {
+  const out = tmp();
+  build(out, {});
+  const win = load(out);
+  const ids = new Set(win.LESSONS.map(l => l.id));
+  const ctx = { lessons, patterns, guides };
+  const diag = CORE.buildDiagnostic(ctx);
+  const tested = new Set(diag.map(id => CORE.patternOf(lessons.find(l => l.id === id), ctx)));
+  const samples = win.CONTENT_META.samples;
+  for (const pid of tested) {
+    if (["hashing", "two-pointers"].includes(pid)) { assert.ok(!samples[pid]); continue; }
+    const [recog, code] = samples[pid];
+    assert.ok(ids.has(recog) && ids.has(code), pid);
+    const r = lessons.find(l => l.id === recog), c = lessons.find(l => l.id === code);
+    assert.deepStrictEqual([CORE.patternOf(r, ctx), CORE.patternOf(c, ctx)], [pid, pid]);
+    assert.ok(["mcq", "multi"].includes(r.type) && c.type === "code", pid);
+    assert.ok(!diag.includes(recog) && !diag.includes(code), pid + " sample must differ from the diagnostic question");
+  }
+  assert.ok(S.paidLessons.every(l => !Object.values(samples).flat().includes(l.id)));
+});
+
 test("free guides are full and the rest are stubs without a body", () => {
   const out = tmp();
   build(out, {});
