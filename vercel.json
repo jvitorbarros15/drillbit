@@ -11,7 +11,7 @@
       ]
     },
     {
-      "source": "/(app|content-free|patterns|companies|core|viz|anim|trace|auth|analytics|config).js",
+      "source": "/(app|content-free|patterns|companies|core|viz|anim|trace|auth|analytics|config|sw).js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -22,7 +22,7 @@
   ],
   "functions": {
     "api/content.js": { "includeFiles": "{data.js,guides.js,patterns.js,core.js}" },
-    "api/cron-reminders.js": { "includeFiles": "{data.js,guides.js,patterns.js,core.js}" }
+    "api/cron-reminders.js": { "includeFiles": "{data.js,guides.js,patterns.js,companies.js,core.js}" }
   },
   "buildCommand": "npm run build",
   "outputDirectory": "public"

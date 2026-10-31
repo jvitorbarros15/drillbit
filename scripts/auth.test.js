@@ -9,7 +9,7 @@ const src = fs.readFileSync(path.join(__dirname, "..", "auth.js"), "utf8");
 const json = x => JSON.parse(JSON.stringify(x));
 const flush = async () => { for (let i = 0; i < 8; i++) await new Promise(r => setImmediate(r)); };
 
-function setup({ config, remote = null, failUpdate = false, fetchStatus = 200, token = "tok", owner = null, stashed = {}, ctx: lessonCtx } = {}) {
+function setup({ config, remote = null, failUpdate = false, fetchStatus = 200, token = "tok", owner = null, stashed = {}, ctx: lessonCtx, push = null } = {}) {
   const calls = [];
   let authCb = null;
   const builder = (table, op, args) => {
@@ -50,12 +50,14 @@ function setup({ config, remote = null, failUpdate = false, fetchStatus = 200, t
     fetch: async (url, init) => { calls.push({ op: "fetch", args: [url, init] }); return { ok: fetchStatus === 200, status: fetchStatus, json: async () => ({ url, ok: 1 }) }; }
   };
   if (config) win.DRILLBIT_CONFIG = config;
+  if (push) Object.assign(win, { PushManager: function () {}, Notification: { requestPermission: async () => push.permission }, atob: b => Buffer.from(b, "base64").toString("binary") });
   const ctx = vm.createContext({
     window: win,
     document: { createElement: () => ({}), head: { appendChild() {} } },
     setTimeout: (...a) => setTimeout(...a),
     clearTimeout: (...a) => clearTimeout(...a),
-    Date, JSON, Promise
+    Date, JSON, Promise, Uint8Array,
+    ...(push ? { navigator: { serviceWorker: push.sw } } : {})
   });
   vm.runInContext(src, ctx);
   const notes = [];
@@ -276,4 +278,60 @@ test("lastSync and syncFailed report sync status, and sync retries", async () =>
   await bad.AUTH.sync();
   assert.strictEqual(bad.notes.length, 2, "a manual retry that fails again says so");
   assert.deepStrictEqual([setup({}).AUTH.lastSync(), setup({}).AUTH.syncFailed()], [null, false]);
+});
+
+// a fake service worker registration whose push manager records what happens
+const fakePush = (permission = "granted", existing = null) => {
+  const log = [];
+  let current = existing;
+  const sub = endpoint => ({ endpoint, toJSON: () => ({ endpoint, keys: { p256dh: "pk", auth: "ak" } }), unsubscribe: async () => { log.push(["unsubscribe", endpoint]); current = null; } });
+  if (existing) current = sub(existing);
+  const reg = { pushManager: { getSubscription: async () => current, subscribe: async o => { log.push(["subscribe", o.userVisibleOnly, o.applicationServerKey.length]); current = sub("https://push.test/new"); return current; } } };
+  return { permission, log, sw: { register: async p => { log.push(["register", p]); return reg; }, getRegistration: async () => reg } };
+};
+const PUSH_CFG = { ...CFG, vapidPublicKey: "BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" };
+
+test("push is unsupported without a VAPID key or browser support", async () => {
+  assert.strictEqual(setup({ config: CFG, push: fakePush() }).AUTH.pushSupported(), false);
+  assert.strictEqual(setup({ config: PUSH_CFG }).AUTH.pushSupported(), false);
+  assert.strictEqual(setup({ config: PUSH_CFG, push: fakePush() }).AUTH.pushSupported(), true);
+  assert.strictEqual(await setup({}).AUTH.enablePush({ hour: 8, timezone: "UTC" }), null);
+});
+
+test("enablePush subscribes, stores the subscription and turns push on for the profile", async () => {
+  const p = fakePush();
+  const t = setup({ config: PUSH_CFG, push: p });
+  await t.signIn();
+  const r = await t.AUTH.enablePush({ hour: 8, timezone: "America/New_York" });
+  assert.deepStrictEqual(json(r), { ok: true });
+  assert.deepStrictEqual(p.log.map(x => x[0]), ["register", "subscribe"]);
+  assert.strictEqual(p.log[1][1], true);
+  const up = ops(t.calls, "upsert").find(c => c.table === "push_subscriptions");
+  assert.deepStrictEqual(json(up.args), [{ endpoint: "https://push.test/new", p256dh: "pk", auth: "ak", user_id: "u1" }, { onConflict: "endpoint", ignoreDuplicates: true }]);
+  const prof = ops(t.calls, "update").filter(c => c.table === "profiles").pop();
+  assert.deepStrictEqual(json(prof.args[0]), { push_enabled: true, reminder_hour: 8, timezone: "America/New_York" });
+});
+
+test("enablePush stops when notification permission is denied", async () => {
+  const p = fakePush("denied");
+  const t = setup({ config: PUSH_CFG, push: p });
+  await t.signIn();
+  assert.deepStrictEqual(json(await t.AUTH.enablePush({ hour: 8, timezone: "UTC" })), { ok: false, reason: "denied" });
+  assert.strictEqual(p.log.length, 0);
+});
+
+test("disablePush and sign-out remove this device's subscription", async () => {
+  const p = fakePush("granted", "https://push.test/old");
+  const t = setup({ config: PUSH_CFG, push: p });
+  await t.signIn();
+  assert.deepStrictEqual(json(await t.AUTH.disablePush()), { ok: true });
+  const del = ops(t.calls, "delete").find(c => c.table === "push_subscriptions");
+  assert.deepStrictEqual(del.filters, [["eq", "endpoint", "https://push.test/old"]]);
+  assert.deepStrictEqual(p.log, [["unsubscribe", "https://push.test/old"]]);
+  const q = fakePush("granted", "https://push.test/shared");
+  const u = setup({ config: PUSH_CFG, push: q });
+  await u.signIn();
+  await u.AUTH.signOut();
+  assert.deepStrictEqual(q.log, [["unsubscribe", "https://push.test/shared"]]);
+  assert.ok(ops(u.calls, "signOut").length === 1);
 });

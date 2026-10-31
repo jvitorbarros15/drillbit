@@ -31,7 +31,7 @@ test("build output has the free bundle and none of the paid text", () => {
   for (const g of S.paidGuides) assert.ok(!text.includes(JSON.stringify(g.body)), g.id + " body");
   assert.ok(!fs.existsSync(path.join(out, "data.js")));
   assert.ok(!fs.existsSync(path.join(out, "guides.js")));
-  for (const f of ["index.html", "styles.css", "learn.css", "viz.js", "anim.js", "trace.js", "patterns.js", "companies.js", "core.js", "auth.js", "analytics.js", "app.js", "terms.html", "privacy.html", "refund.html"]) assert.ok(fs.existsSync(path.join(out, f)), f);
+  for (const f of ["index.html", "styles.css", "learn.css", "viz.js", "anim.js", "trace.js", "patterns.js", "companies.js", "core.js", "auth.js", "analytics.js", "app.js", "terms.html", "privacy.html", "refund.html", "sw.js"]) assert.ok(fs.existsSync(path.join(out, f)), f);
 });
 
 test("every free and diagnostic lesson is present", () => {
@@ -116,6 +116,11 @@ test("config.js is written only when both env vars are set", () => {
   vm.runInNewContext(fs.readFileSync(path.join(out, "config.js"), "utf8"), { window: win });
   assert.strictEqual(win.DRILLBIT_CONFIG.supabaseUrl, "https://x.supabase.test");
   assert.strictEqual(win.DRILLBIT_CONFIG.supabaseAnonKey, "anon");
+  assert.strictEqual(win.DRILLBIT_CONFIG.vapidPublicKey, undefined);
+  out = tmp();
+  build(out, { SUPABASE_URL: "https://x.supabase.test", SUPABASE_ANON_KEY: "anon", VAPID_PUBLIC_KEY: "BPub", VAPID_PRIVATE_KEY: "never-shipped" });
+  const text = fs.readFileSync(path.join(out, "config.js"), "utf8");
+  assert.ok(text.includes("BPub") && !text.includes("never-shipped"), "only the public VAPID key reaches the browser");
 });
 
 test("config.js carries the PostHog settings only when POSTHOG_KEY is set", () => {

@@ -252,9 +252,15 @@
           <span class="muted small">${esc(browserZone())}</span>
           <button class="btn primary" data-act="save-reminder">Save</button>
         </div>
-        <p class="muted small">One email a day at most. Unsubscribe from any email.</p>
+        <p class="muted small">One message a day at most, at this hour. If you stop for a while, you'll only hear from us after 3, 7, 14 and 30 days, plus 14, 7, 3 and 1 days before your interview. Unsubscribe from any email.</p>
+        <div class="auth-row push-row">${pushControl(r)}</div>
       </section>`;
   };
+  const pushControl = r => !AUTH.pushSupported()
+    ? `<span class="muted small">Browser notifications aren't available in this browser. On iPhone, add Drillbit to your home screen first.</span>`
+    : r.push
+    ? `<span class="muted">Browser notifications are on for this device.</span><button class="btn ghost" data-act="push-off">Turn off</button>`
+    : `<span class="muted">Get the same reminder as a browser notification on this device.</span><button class="btn ghost" data-act="push-on">Turn on notifications</button>`;
   async function loadReminder() {
     reminder = await AUTH.loadReminder();
     if (location.hash === "#account" && AUTH.user()) renderAccount();
@@ -1432,6 +1438,18 @@
         break;
       }
       case "auth-google": AUTH.signInWithGoogle(); break;
+      case "push-on":
+        el.disabled = true;
+        AUTH.enablePush({ hour: Number($("#rem-hour").value), timezone: browserZone() }).then(r => {
+          if (r && r.ok) { reminder = Object.assign({}, reminder, { push: true, hour: Number($("#rem-hour").value) }); toast("Notifications are on."); ANALYTICS.track("push_enabled"); }
+          else toast(r && r.reason === "denied" ? "Notifications are blocked. Allow them in your browser settings to turn them on." : "Couldn't turn on notifications.");
+          if (location.hash === "#account") renderAccount();
+        });
+        break;
+      case "push-off":
+        el.disabled = true;
+        AUTH.disablePush().then(r => { if (r && r.ok) { reminder = Object.assign({}, reminder, { push: false }); toast("Notifications are off for this device."); } if (location.hash === "#account") renderAccount(); });
+        break;
       case "sync-now":
         el.disabled = true;
         AUTH.sync().then(() => { if (location.hash === "#account") renderAccount(); if (!AUTH.syncFailed()) toast("Synced."); });

@@ -9,7 +9,8 @@
       enabled: false, ready: Promise.resolve(), user: () => null, attach() {}, onChange() {},
       signInWithEmail: none, signInWithGoogle: none, signOut: none, pull: none, push: none,
       logAttempt: none, syncQueue: none, sync: none, loadReminder: none, saveReminder: none,
-      lastSync: () => null, syncFailed: () => false
+      lastSync: () => null, syncFailed: () => false,
+      pushSupported: () => false, enablePush: none, disablePush: none
     };
     return;
   }
@@ -100,6 +101,26 @@
     });
   }
 
+  // ---------- browser push ----------
+  const hasPushApi = () => typeof navigator !== "undefined" && "serviceWorker" in navigator && typeof window.PushManager !== "undefined" && typeof window.Notification !== "undefined";
+  const urlB64 = b64 => {
+    const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+    const raw = window.atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(raw, c => c.charCodeAt(0));
+  };
+  async function deviceSubscription() {
+    if (!hasPushApi()) return null;
+    const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+    return reg ? reg.pushManager.getSubscription() : null;
+  }
+  // Removes this browser's subscription from the account, so a shared device stops getting someone else's reminders.
+  async function dropDevice() {
+    const sub = await deviceSubscription();
+    if (!sub) return;
+    check(await client.from("push_subscriptions").delete().eq("endpoint", sub.endpoint));
+    await sub.unsubscribe();
+  }
+
   const api = (path, init = {}) => guard(async () => {
     const { data } = await client.auth.getSession();
     const token = data && data.session && data.session.access_token;
@@ -129,6 +150,7 @@
       return { ok: true };
     }),
     signOut: () => guard(async () => {
+      try { if (user) await dropDevice(); } catch (e) { /* signing out must still work */ }
       check(await client.auth.signOut());
       user = null; syncedFor = null; lastQueue = "";
       emit("user");
@@ -146,8 +168,29 @@
     },
     loadReminder: () => guard(async () => {
       if (!user) return null;
-      const r = check(await client.from("profiles").select("reminders_enabled, reminder_hour, timezone").eq("id", user.id).maybeSingle());
-      return r.data ? { enabled: r.data.reminders_enabled, hour: r.data.reminder_hour, timezone: r.data.timezone } : null;
+      const r = check(await client.from("profiles").select("reminders_enabled, reminder_hour, timezone, push_enabled").eq("id", user.id).maybeSingle());
+      if (!r.data) return null;
+      const device = await deviceSubscription().catch(() => null);
+      return { enabled: r.data.reminders_enabled, hour: r.data.reminder_hour, timezone: r.data.timezone, push: !!r.data.push_enabled && !!device };
+    }),
+    pushSupported: () => !!cfg.vapidPublicKey && hasPushApi(),
+    enablePush: ({ hour, timezone }) => guard(async () => {
+      if (!user) return null;
+      if (!cfg.vapidPublicKey || !hasPushApi()) return { ok: false, reason: "unsupported" };
+      const perm = await window.Notification.requestPermission();
+      if (perm !== "granted") return { ok: false, reason: "denied" };
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64(cfg.vapidPublicKey) });
+      const j = sub.toJSON();
+      check(await client.from("push_subscriptions").upsert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_id: user.id }, { onConflict: "endpoint", ignoreDuplicates: true }));
+      check(await client.from("profiles").update({ push_enabled: true, reminder_hour: hour, timezone }).eq("id", user.id));
+      return { ok: true };
+    }),
+    disablePush: () => guard(async () => {
+      if (!user) return null;
+      await dropDevice();
+      check(await client.from("profiles").update({ push_enabled: false }).eq("id", user.id));
+      return { ok: true };
     }),
     saveReminder: ({ enabled, hour, timezone }) => guard(async () => {
       if (!user) return null;
