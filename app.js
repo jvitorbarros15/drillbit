@@ -32,7 +32,7 @@
   const MAX_FREEZES = 2;
   const TIME_LIMIT = 4000;
   const KIND = { review: "Review", recognition: "Recognition", concept: "Concept", exercise: "Exercise" };
-  const STATUS = { new: "New", learning: "Learning", shaky: "Shaky", ready: "Ready" };
+  const STATUS = { new: "New", learning: "Learning", shaky: "Shaky", ready: "Ready", due: "Review due" };
 
   // ---------- state ----------
   const today = () => CORE.fmt(new Date());
@@ -268,7 +268,18 @@
         <h1>${u ? "You're signed in." : "Sign in."}</h1>
         ${u ? `<p class="muted">${esc(u.email || "")}. Your progress syncs to this account.</p>` : ""}
       </section>
-      ${u ? reminderPanel() : authBox()}`;
+      ${u ? syncPanel() + reminderPanel() : authBox()}`;
+  }
+  function syncPanel() {
+    const at = AUTH.lastSync();
+    const line = AUTH.syncFailed() ? "The last sync failed. Your progress is safe on this device."
+      : at ? `Last synced ${new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`
+      : "Not synced yet.";
+    return `
+      <section class="panel">
+        <div class="panel-head"><h3>Sync</h3></div>
+        <div class="auth-row"><span class="muted">${line}</span><button class="btn ghost" data-act="sync-now">Sync now</button></div>
+      </section>`;
   }
   const flameSvg = () => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-6 1-9.5z"/></svg>`;
   const iceSvg = () => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 2 3-2M9 20l3-2 3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
@@ -344,6 +355,13 @@
     }).join("")}</ol>`;
   }
 
+  const shortDate = d => CORE.parse(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  function evidence(r) {
+    if (r.check) return `${r.check.kind === "fresh" ? "New problem" : "Retry"} solved alone ${shortDate(r.check.at)}${r.status === "due" ? ", check again" : ""}`;
+    if (r.lastWin) return `Last solved ${shortDate(r.lastWin)}, no independent check yet`;
+    return "";
+  }
+
   function readinessPanel() {
     const cells = CORE.readiness(S, ctx, today()).map(r => {
       const g = GUIDE_BY_ID[PAT_BY_ID[r.id].guide];
@@ -351,7 +369,7 @@
       const inner = locked
         ? `<span class="rd-name">${esc(r.name)}</span><span class="rd-status"><i class="rd-dot"></i>Sprint Pass</span>`
         : r.hasContent
-        ? `<span class="rd-name">${esc(r.name)}</span><span class="rd-status"><i class="rd-dot"></i>${STATUS[r.status]}</span>${r.openMisses ? `<span class="muted small">${r.openMisses} open miss${r.openMisses > 1 ? "es" : ""}</span>` : ""}`
+        ? `<span class="rd-name">${esc(r.name)}</span><span class="rd-status"><i class="rd-dot"></i>${STATUS[r.status]}</span>${r.openMisses ? `<span class="muted small">${r.openMisses} open miss${r.openMisses > 1 ? "es" : ""}</span>` : ""}${evidence(r) ? `<span class="muted small rd-ev">${evidence(r)}</span>` : ""}`
         : `<span class="rd-name">${esc(r.name)}</span><span class="muted small">Coming soon</span>`;
       const cls = `rd-cell ${locked ? "locked" : r.hasContent ? r.status : "soon"}`;
       return g ? `<button class="${cls}" data-act="guide" data-id="${g.id}">${inner}</button>` : `<div class="${cls}">${inner}</div>`;
@@ -359,6 +377,7 @@
     return `
       <section class="panel">
         <div class="panel-head"><h3>Readiness map</h3><span class="muted small">${PATTERNS.length} patterns</span></div>
+        <p class="muted small">Ready means two different problems solved, then a problem solved alone with no hints on a later day. It reflects your practice here, not a hiring prediction.</p>
         <div class="rd-grid">${cells}</div>
       </section>`;
   }
@@ -780,7 +799,7 @@
 
     const item = BY_ID[entry.lessonId];
     const noHint = run.mode === "diagnostic" || !!entry.independent;
-    cur = { item, entry, startedAt: Date.now(), answered: false, sel: new Set(), hinted: false, noHint, response: null, firstFail: null, asking: false };
+    cur = { item, entry, startedAt: Date.now(), answered: false, sel: new Set(), hinted: false, noHint, response: null, firstFail: null, asking: false, firstRun: null, failedRuns: 0, errorRuns: 0, revealed: false };
 
     app.innerHTML = `
       <div class="run">
@@ -794,7 +813,7 @@
             ${S.items[item.id] && S.items[item.id].wrong && !S.items[item.id].correct ? `<span class="tag redo">Review</span>` : ""}
           </div>
           ${entry.kind === "review" && MISC[entry.tag] ? `<div class="notice ice">Bringing back: ${esc(MISC[entry.tag].label)}</div>` : ""}
-          ${entry.independent ? `<div class="notice good">Independent check: no hints. Solve it alone to master this pattern.</div>` : ""}
+          ${entry.independent ? `<div class="notice good">Independent check: no hints. Passing on the first run counts as evidence for this pattern.</div>` : ""}
           <h2>${esc(item.title)}</h2>
           <p class="prompt">${rich(item.prompt)}</p>
           <div id="body"></div>
@@ -820,7 +839,7 @@
         <p class="muted small">Ballpark counts. Anything in a sensible range passes.</p>`;
       setTimeout(() => $("#num") && $("#num").focus(), 30);
     } else if (item.type === "code") {
-      const draft = S.drafts[item.id] != null ? S.drafts[item.id] : item.starter;
+      const draft = S.drafts[item.id] ? S.drafts[item.id].code : item.starter;
       body.innerHTML = `
         <div class="editor">
           <div class="editor-head"><span>solution.js</span><span class="muted small">Tab indents. Ctrl/Cmd + Enter runs.</span></div>
@@ -874,7 +893,7 @@
     ta.addEventListener("input", () => {
       syncGutter();
       clearTimeout(draftTimer);
-      draftTimer = setTimeout(() => { S.drafts[item.id] = ta.value; save(); }, 300);
+      draftTimer = setTimeout(() => { S.drafts[item.id] = { code: ta.value, ts: new Date().toISOString() }; save(); }, 300);
     });
     ta.addEventListener("keydown", e => {
       if (ta.readOnly) return;
@@ -907,17 +926,20 @@
     const btn = document.querySelector('[data-act="run-tests"]');
     btn.disabled = true; btn.textContent = "Running...";
     const code = $("#code").value;
-    S.drafts[cur.item.id] = code; save();
+    S.drafts[cur.item.id] = { code, ts: new Date().toISOString() }; save();
     const res = await runInWorker(code, cur.item);
     if (!cur || cur.answered) return;
     btn.disabled = false; btn.textContent = "Run tests";
     const box = $("#tests");
     if (res.error) {
+      cur.errorRuns++;
+      if (!cur.firstRun) cur.firstRun = "error";
       box.innerHTML = `<div class="tests"><div class="test fail"><span class="mark">!</span><span>${esc(res.error)}</span></div></div>`;
       shake(box);
       return;
     }
     const passed = res.results.filter(r => r.pass).length;
+    if (!cur.firstRun) cur.firstRun = passed === res.results.length ? "pass" : "fail";
     box.innerHTML = `
       <div class="tests">
         <div class="tests-head ${passed === res.results.length ? "good" : "bad"}">${passed}/${res.results.length} tests passing</div>
@@ -931,6 +953,7 @@
       </div>`;
     if (passed === res.results.length) finish(true);
     else {
+      cur.failedRuns++;
       if (!cur.firstFail) cur.firstFail = res.results.map(r => ({ pass: r.pass }));
       shake(box);
     }
@@ -1006,7 +1029,9 @@
     const dots = document.querySelectorAll(".dot");
     if (dots[run.idx]) { dots[run.idx].classList.remove("cur"); dots[run.idx].classList.add(correct ? "ok" : "bad"); }
 
-    const tag = correct ? null : CORE.inferMiss(item, item.type === "code" ? { results: cur.firstFail || [] } : cur.response);
+    const tag = correct
+      ? (item.type === "code" && cur.firstFail ? CORE.inferMiss(item, { results: cur.firstFail }) : null)
+      : CORE.inferMiss(item, item.type === "code" ? { results: cur.firstFail || [] } : cur.response);
     const pid = CORE.patternOf(item, ctx);
     if (!correct && !tag && pid) { cur.asking = true; cur.pid = pid; renderFeedback(); }
     else commit(tag);
@@ -1018,20 +1043,28 @@
     cur.tag = tag;
     const { item, entry, correct } = cur;
     const durationMs = Date.now() - cur.startedAt;
-    if (run.mode === "diagnostic") run.answers.push({ lessonId: item.id, correct, tag, durationMs });
+    const a = { lessonId: item.id, correct, tag, hinted: cur.hinted, failedRuns: cur.failedRuns, errorRuns: cur.errorRuns, revealed: cur.revealed, firstRun: cur.firstRun, id: newId(), ts: new Date().toISOString(), durationMs };
+    if (run.mode === "diagnostic") run.answers.push(a);
     else {
       const pid = CORE.patternOf(item, ctx);
-      const hadMastery = !!(S.patterns[pid] && S.patterns[pid].mastered);
-      CORE.recordAttempt(S, ctx, today(), { lessonId: item.id, correct, tag, hinted: cur.hinted, reviewOf: entry.kind === "review" ? entry.tag : undefined });
+      const status = () => { const r = pid && CORE.readiness(S, ctx, today()).find(x => x.id === pid); return r ? r.status : null; };
+      const was = status();
+      CORE.recordAttempt(S, ctx, today(), { ...a, reviewOf: entry.kind === "review" ? entry.tag : undefined });
       if (correct && entry.kind === "review") ANALYTICS.track("review_item_passed", { tag: entry.tag });
-      if (!hadMastery && S.patterns[pid] && S.patterns[pid].mastered) ANALYTICS.track("pattern_mastered", { pattern: pid });
-      AUTH.logAttempt({ item_id: item.id, correct, misconception_tag: tag, duration_ms: durationMs });
+      if (was !== "ready" && status() === "ready") ANALYTICS.track("pattern_mastered", { pattern: pid, evidence: S.patterns[pid].check.kind });
+      AUTH.logAttempt(attemptRow(a));
     }
     run.results.push({ correct });
     save();
     renderChips();
     renderFeedback();
   }
+
+  const newId = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const attemptRow = a => ({
+    item_id: a.lessonId, correct: a.correct, misconception_tag: a.tag || null, duration_ms: a.durationMs,
+    client_id: a.id, first_run: a.firstRun || null, failed_runs: a.failedRuns || 0, error_runs: a.errorRuns || 0, hinted: !!a.hinted, revealed: !!a.revealed
+  });
 
   function renderFeedback() {
     const { item, correct, tag } = cur;
@@ -1042,10 +1075,11 @@
       <div class="fb ${correct ? "good" : "bad"}">
         <div class="fb-head">
           <strong>${cur.head}</strong>
-          ${tag && run.mode !== "diagnostic" ? `<span class="muted small">Comes back in review</span>` : ""}
+          ${tag && run.mode !== "diagnostic" ? `<span class="muted small">${correct ? "Fixed, back in 3 days" : "Comes back in review"}</span>` : ""}
         </div>
         ${cur.extra ? `<p class="fb-extra">${esc(cur.extra)}</p>` : ""}
-        ${m ? `<div class="hint"><strong>${esc(m.label)}</strong><br>${esc(m.fix)}</div>` : ""}
+        ${m ? `<div class="hint">${correct ? "Your first failing run showed this mistake. Passing counts as practice, and it goes in your notebook.<br>" : ""}<strong>${esc(m.label)}</strong><br>${esc(m.fix)}</div>` : ""}
+        ${correct && !m && cur.failedRuns ? `<p class="muted small">Passed after ${cur.failedRuns} failing run${cur.failedRuns > 1 ? "s" : ""}. That counts as practice, not as an unaided solve.</p>` : ""}
         <p>${rich(item.explain)}</p>
         ${item.type === "code" && item.viz ? `<button class="btn ghost small watch-ref" data-act="watch-ref">Watch the reference solution</button><div id="watch"></div>` : ""}
         ${item.type === "code" ? `<details ${correct ? "" : "open"}><summary>Reference solution</summary><pre class="sol"><code>${esc(item.solution)}</code></pre></details>` : ""}
@@ -1080,7 +1114,7 @@
     if (run.mode === "diagnostic") {
       CORE.recordDiagnostic(S, ctx, t, run.answers);
       ANALYTICS.track("diagnostic_completed", { correct: run.answers.filter(a => a.correct).length, total: run.answers.length });
-      run.answers.forEach(a => AUTH.logAttempt({ item_id: a.lessonId, correct: a.correct, misconception_tag: a.tag, duration_ms: a.durationMs }));
+      run.answers.forEach(a => AUTH.logAttempt(attemptRow(a)));
       save();
       renderDiagResults();
       run = null; cur = null;
@@ -1179,7 +1213,7 @@
       f.text().then(txt => {
         try {
           const data = JSON.parse(txt);
-          if (!data || (data.v !== 1 && data.v !== 2) || !data.items) throw new Error();
+          if (!data || ![1, 2, 3].includes(data.v) || !data.items) throw new Error();
           S = CORE.migrate(data); save(); reconcileStreak(); go(""); toast("Progress imported.");
         } catch (e) { toast("That file doesn't look like a Drillbit export."); }
       });
@@ -1239,6 +1273,10 @@
         break;
       }
       case "auth-google": AUTH.signInWithGoogle(); break;
+      case "sync-now":
+        el.disabled = true;
+        AUTH.sync().then(() => { if (location.hash === "#account") renderAccount(); if (!AUTH.syncFailed()) toast("Synced."); });
+        break;
       case "set-date": {
         el.outerHTML = `<input class="chip date-input" type="date" id="chip-date" aria-label="Interview date" value="${S.profile.interviewDate || ""}" />`;
         const inp = $("#chip-date");
@@ -1253,7 +1291,7 @@
       case "submit-multi": submitMulti(); break;
       case "run-tests": runTests(); break;
       case "hint": if (cur && !cur.noHint) { cur.hinted = true; $("#hint").innerHTML = `<div class="hint">${rich(cur.item.hint || "No hint for this one. Trust yourself.")}</div>`; } break;
-      case "give-up": if (cur && !cur.answered) finish(false); break;
+      case "give-up": if (cur && !cur.answered) { cur.revealed = true; finish(false); } break;
       case "pick-miss": if (cur && cur.asking) commit(el.dataset.tag || null); break;
       case "reset-code": if (cur && !cur.answered) { $("#code").value = cur.item.starter; $("#code").dispatchEvent(new Event("input")); } break;
       case "tab": {
@@ -1304,7 +1342,15 @@
 
   // ---------- boot ----------
   window.addEventListener("hashchange", route);
-  AUTH.attach({ get: () => S, set: s => { S = s; persist(); }, notify: toast });
+  const STASH = "drillbit.stash.";
+  AUTH.attach({
+    get: () => S, set: s => { S = s; persist(); }, notify: toast, ctx: () => ctx,
+    stash: s => { try { localStorage.setItem(STASH + s.owner, JSON.stringify(s)); } catch (err) { /* ignore */ } },
+    unstash: id => {
+      try { const raw = localStorage.getItem(STASH + id); localStorage.removeItem(STASH + id); return raw ? CORE.migrate(JSON.parse(raw)) : null; }
+      catch (err) { return null; }
+    }
+  });
   const takeReturn = () => {
     try { const r = localStorage.getItem(RETURN_KEY); localStorage.removeItem(RETURN_KEY); return r; } catch (err) { return null; }
   };

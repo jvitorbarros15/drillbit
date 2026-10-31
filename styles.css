@@ -194,6 +194,8 @@ button.rd-cell:hover { border-color: var(--line2); }
 .rd-cell.learning { border-left-color: var(--ice); } .rd-cell.learning .rd-dot { background: var(--ice); }
 .rd-cell.shaky { border-left-color: var(--hot); } .rd-cell.shaky .rd-dot { background: var(--hot); }
 .rd-cell.ready { border-left-color: var(--good); } .rd-cell.ready .rd-dot { background: var(--good); }
+.rd-cell.due { border-left-color: var(--gold); } .rd-cell.due .rd-dot { background: var(--gold); }
+.rd-ev { line-height: 1.3; }
 .rd-cell.soon { opacity: 0.55; }
 .rd-cell.locked { border-left-color: var(--violet); } .rd-cell.locked .rd-dot { background: var(--violet); }
 .pass-list { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 4px; }
