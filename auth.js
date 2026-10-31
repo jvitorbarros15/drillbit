@@ -8,14 +8,15 @@
       access: none, content: none, checkout: none,
       enabled: false, ready: Promise.resolve(), user: () => null, attach() {}, onChange() {},
       signInWithEmail: none, signInWithGoogle: none, signOut: none, pull: none, push: none,
-      logAttempt: none, syncQueue: none, sync: none, loadReminder: none, saveReminder: none
+      logAttempt: none, syncQueue: none, sync: none, loadReminder: none, saveReminder: none,
+      lastSync: () => null, syncFailed: () => false
     };
     return;
   }
 
   const CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/dist/umd/supabase.js";
   const PUSH_DELAY = 2000;
-  let client = null, user = null, hooks = null, failed = false, syncedFor = null, lastQueue = "", timer = null, pending = null;
+  let client = null, user = null, hooks = null, failed = false, syncedFor = null, lastQueue = "", timer = null, pending = null, lastSync = null;
   const listeners = [];
   const emit = what => listeners.forEach(cb => { try { cb(what); } catch (e) { /* listener bug must not break auth */ } });
 
@@ -76,17 +77,25 @@
     lastQueue = key;
   }
 
+  // Local progress owned by another account is never merged into this one. It is stashed on the device
+  // and comes back if that account signs in here again.
   function sync() {
+    failed = false;
     return guard(async () => {
       if (!user || !hooks) return;
+      const C = window.CORE, uid = user.id;
       const local = hooks.get();
       const remote = await pullRaw();
-      const next = remote ? window.CORE.mergeProgress(local, remote) : local;
-      if (remote) hooks.set(next);
+      const foreign = !!local.owner && local.owner !== uid;
+      if (foreign && hooks.stash) hooks.stash(local);
+      const own = foreign ? (hooks.unstash ? hooks.unstash(uid) : null) : local;
+      let next = own && remote ? C.mergeProgress(own, remote, hooks.ctx ? hooks.ctx() : undefined) : own || (remote ? C.migrate(remote) : C.blankState());
+      if (next !== local || next.owner !== uid) { next = Object.assign({}, next, { owner: uid }); hooks.set(next); }
       clearTimeout(timer);
       pending = null;
       await pushNow(next);
       await queueNow(next.misses);
+      lastSync = new Date().toISOString();
       emit("synced");
     });
   }
@@ -109,6 +118,8 @@
     attach(h) { hooks = h; },
     onChange(cb) { listeners.push(cb); },
     sync,
+    lastSync: () => lastSync,
+    syncFailed: () => failed,
     signInWithEmail: email => guard(async () => {
       check(await client.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } }));
       return { ok: true };

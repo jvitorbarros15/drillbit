@@ -9,7 +9,7 @@ const src = fs.readFileSync(path.join(__dirname, "..", "auth.js"), "utf8");
 const json = x => JSON.parse(JSON.stringify(x));
 const flush = async () => { for (let i = 0; i < 8; i++) await new Promise(r => setImmediate(r)); };
 
-function setup({ config, remote = null, failUpdate = false, fetchStatus = 200, token = "tok" } = {}) {
+function setup({ config, remote = null, failUpdate = false, fetchStatus = 200, token = "tok", owner = null, stashed = {}, ctx: lessonCtx } = {}) {
   const calls = [];
   let authCb = null;
   const builder = (table, op, args) => {
@@ -62,15 +62,20 @@ function setup({ config, remote = null, failUpdate = false, fetchStatus = 200, t
   let state = json(CORE.blankState());
   state.streak = 3;
   state.lastDone = "2026-03-10";
-  const sets = [];
-  win.AUTH.attach({ get: () => state, set: s => { sets.push(s); state = s; }, notify: m => notes.push(m) });
+  state.owner = owner;
+  const sets = [], stashes = [];
+  win.AUTH.attach({
+    get: () => state, set: s => { sets.push(s); state = s; }, notify: m => notes.push(m),
+    stash: s => stashes.push(json(s)), unstash: id => { const v = stashed[id] || null; delete stashed[id]; return v; },
+    ...(lessonCtx ? { ctx: () => lessonCtx } : {})
+  });
   const signIn = async () => {
     await win.AUTH.ready;
     authCb("SIGNED_IN", { user: { id: "u1", email: "a@x.test" } });
     mock.timers.tick(10);
     await flush();
   };
-  return { AUTH: win.AUTH, calls, notes, sets, signIn, getState: () => state };
+  return { AUTH: win.AUTH, calls, notes, sets, stashes, signIn, getState: () => state };
 }
 
 const { mock } = test;
@@ -107,10 +112,11 @@ test("signInWithGoogle starts the google OAuth flow", async () => {
   assert.strictEqual(ops(calls, "signInWithOAuth")[0].args.provider, "google");
 });
 
-test("first sign-in with no remote progress pushes local", async () => {
+test("first sign-in with no remote progress claims and pushes local", async () => {
   const t = setup({ config: CFG, remote: null });
   await t.signIn();
-  assert.strictEqual(t.sets.length, 0);
+  assert.strictEqual(t.sets.length, 1);
+  assert.deepStrictEqual([t.getState().owner, t.getState().streak], ["u1", 3]);
   const up = ops(t.calls, "update");
   assert.strictEqual(up.length, 1);
   assert.strictEqual(up[0].table, "profiles");
@@ -125,7 +131,7 @@ test("sign-in with remote progress pushes the merged state", async () => {
   const t = setup({ config: CFG, remote });
   const local = json(t.getState());
   await t.signIn();
-  const merged = json(CORE.mergeProgress(local, remote));
+  const merged = { ...json(CORE.mergeProgress(local, remote)), owner: "u1" };
   assert.strictEqual(t.sets.length, 1);
   assert.deepStrictEqual(json(t.sets[0]), merged);
   assert.deepStrictEqual(json(ops(t.calls, "update")[0].args[0].progress), merged);
@@ -228,4 +234,46 @@ test("saveReminder updates the own profile row with the reminder fields", async 
 test("saveReminder resolves null when signed out", async () => {
   const t = setup({ config: CFG });
   assert.strictEqual(await t.AUTH.saveReminder({ enabled: true, hour: 8, timezone: "UTC" }), null);
+});
+
+test("progress owned by another account is stashed, not merged", async () => {
+  const remote = json(CORE.blankState());
+  remote.streak = 9; remote.lastDone = "2026-03-12";
+  const t = setup({ config: CFG, remote, owner: "someone-else" });
+  await t.signIn();
+  assert.deepStrictEqual([t.getState().owner, t.getState().streak], ["u1", 9]);
+  assert.deepStrictEqual([t.stashes.length, t.stashes[0].owner, t.stashes[0].streak], [1, "someone-else", 3]);
+  assert.strictEqual(json(ops(t.calls, "update")[0].args[0].progress).streak, 9);
+});
+
+test("a stashed copy of this account comes back on sign-in", async () => {
+  const mine = json(CORE.blankState());
+  mine.owner = "u1"; mine.best = 21;
+  const t = setup({ config: CFG, remote: null, owner: "someone-else", stashed: { u1: mine } });
+  await t.signIn();
+  assert.deepStrictEqual([t.getState().owner, t.getState().best], ["u1", 21]);
+});
+
+test("sync replays attempt events when the app provides lesson context", async () => {
+  const lessonCtx = { patterns: [], guides: [], lessons: [{ id: "q1", track: "sd", topic: "x", type: "mcq" }, { id: "q2", track: "sd", topic: "x", type: "mcq" }] };
+  const remote = json(CORE.recordAttempt(CORE.blankState(), lessonCtx, "2026-03-10", { lessonId: "q1", correct: true, id: "r1", ts: "2026-03-10T09:00:00Z" }));
+  const t = setup({ config: CFG, remote, ctx: lessonCtx });
+  CORE.recordAttempt(t.getState(), lessonCtx, "2026-03-10", { lessonId: "q2", correct: true, id: "l1", ts: "2026-03-10T10:00:00Z" });
+  await t.signIn();
+  assert.deepStrictEqual(t.getState().events.map(e => e.id), ["r1", "l1"]);
+  assert.strictEqual(t.getState().days["2026-03-10"].answered, 2);
+});
+
+test("lastSync and syncFailed report sync status, and sync retries", async () => {
+  const ok = setup({ config: CFG });
+  assert.strictEqual(ok.AUTH.lastSync(), null);
+  await ok.signIn();
+  assert.ok(ok.AUTH.lastSync());
+  assert.strictEqual(ok.AUTH.syncFailed(), false);
+  const bad = setup({ config: CFG, failUpdate: true });
+  await bad.signIn();
+  assert.deepStrictEqual([bad.AUTH.lastSync(), bad.AUTH.syncFailed()], [null, true]);
+  await bad.AUTH.sync();
+  assert.strictEqual(bad.notes.length, 2, "a manual retry that fails again says so");
+  assert.deepStrictEqual([setup({}).AUTH.lastSync(), setup({}).AUTH.syncFailed()], [null, false]);
 });
