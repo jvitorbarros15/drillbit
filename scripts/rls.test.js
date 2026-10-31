@@ -16,6 +16,7 @@ test.before(async () => {
   await db.exec(read("supabase/migrations/20261029000000_entitlement_functions.sql"));
   await db.exec(read("supabase/migrations/20261029010000_reminders.sql"));
   await db.exec(read("supabase/migrations/20261030000000_attempt_detail.sql"));
+  await db.exec(read("supabase/migrations/20261030010000_push.sql"));
   await db.exec(`
     insert into auth.users (id, email) values ('${A}', 'a@x.test'), ('${B}', 'b@x.test');
     insert into public.attempts (user_id, item_id, correct) values ('${A}', 'q1', true), ('${B}', 'q2', false);
@@ -76,6 +77,20 @@ test("attempts record how the attempt went", async () => {
   await assert.rejects(db.query("insert into public.attempts (item_id, correct, failed_runs) values ('q5', true, -1)"), /check constraint/);
 });
 
+test("push subscriptions: own insert, select and delete only", async () => {
+  await as(A);
+  await db.query("insert into public.push_subscriptions (endpoint, p256dh, auth) values ('https://push.test/a', 'k', 's')");
+  await assert.rejects(db.query(`insert into public.push_subscriptions (endpoint, user_id, p256dh, auth) values ('https://push.test/x', '${B}', 'k', 's')`), /row-level security/);
+  assert.strictEqual((await rows("select * from public.push_subscriptions")).length, 1);
+  assert.strictEqual((await db.query("update public.push_subscriptions set auth = 'z'")).affectedRows, 0, "no update policy");
+  await as(B);
+  assert.strictEqual((await rows("select * from public.push_subscriptions")).length, 0);
+  assert.strictEqual((await db.query("delete from public.push_subscriptions")).affectedRows, 0);
+  await as(A);
+  assert.strictEqual((await db.query(`update public.profiles set push_enabled = true where id = '${A}'`)).affectedRows, 1);
+  assert.strictEqual((await db.query("delete from public.push_subscriptions")).affectedRows, 1);
+});
+
 test("attempts cannot be updated or deleted", async () => {
   await as(A);
   assert.strictEqual((await db.query("update public.attempts set correct = false")).affectedRows, 0);
@@ -112,7 +127,7 @@ test("A can set their own reminder fields but not B's", async () => {
 
 test("anon sees nothing from any table", async () => {
   await as(null, "anon");
-  for (const t of ["profiles", "attempts", "review_queue", "entitlements"]) {
+  for (const t of ["profiles", "attempts", "review_queue", "entitlements", "push_subscriptions"]) {
     assert.strictEqual((await rows(`select * from public.${t}`)).length, 0, t);
   }
 });
