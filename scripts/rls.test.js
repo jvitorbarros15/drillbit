@@ -15,6 +15,7 @@ test.before(async () => {
   await db.exec(read("supabase/migrations/20261023000000_init.sql"));
   await db.exec(read("supabase/migrations/20261029000000_entitlement_functions.sql"));
   await db.exec(read("supabase/migrations/20261029010000_reminders.sql"));
+  await db.exec(read("supabase/migrations/20261030000000_attempt_detail.sql"));
   await db.exec(`
     insert into auth.users (id, email) values ('${A}', 'a@x.test'), ('${B}', 'b@x.test');
     insert into public.attempts (user_id, item_id, correct) values ('${A}', 'q1', true), ('${B}', 'q2', false);
@@ -64,6 +65,15 @@ test("A cannot insert an attempt for B but can for self", async () => {
   await assert.rejects(db.query(`insert into public.attempts (user_id, item_id, correct) values ('${B}', 'q', true)`), /row-level security/);
   await db.query("insert into public.attempts (item_id, correct) values ('q3', false)");
   assert.strictEqual((await rows("select * from public.attempts")).length, 2);
+});
+
+test("attempts record how the attempt went", async () => {
+  await as(A);
+  await db.query("insert into public.attempts (item_id, correct, client_id, first_run, failed_runs, error_runs, hinted, revealed) values ('q4', true, 'c1', 'fail', 2, 1, false, false)");
+  const r = (await rows("select first_run, failed_runs, error_runs from public.attempts where item_id = 'q4'"))[0];
+  assert.deepStrictEqual([r.first_run, r.failed_runs, r.error_runs], ["fail", 2, 1]);
+  await assert.rejects(db.query("insert into public.attempts (item_id, correct, first_run) values ('q5', true, 'maybe')"), /check constraint/);
+  await assert.rejects(db.query("insert into public.attempts (item_id, correct, failed_runs) values ('q5', true, -1)"), /check constraint/);
 });
 
 test("attempts cannot be updated or deleted", async () => {
