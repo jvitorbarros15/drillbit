@@ -371,3 +371,5 @@ pre.sol code { background: none; border: 0; padding: 0; font-size: inherit; }
 .legal ul { padding-left: 20px; }
 .legal a { color: var(--text); }
 .legal .foot { margin-top: 32px; }
+.diag-list { margin: 0 0 10px; padding-left: 20px; }
+.diag-list li { margin-bottom: 6px; }

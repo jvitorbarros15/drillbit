@@ -366,12 +366,14 @@
     const cells = CORE.readiness(S, ctx, today()).map(r => {
       const g = GUIDE_BY_ID[PAT_BY_ID[r.id].guide];
       const locked = gated() && CORE.patternLocked(META, r.id);
-      const inner = locked
+      const known = !!(S.diagnostic && S.diagnostic.results[r.id]) || !!(S.repair && S.repair.pattern === r.id);
+      const hidden = locked && !known;
+      const inner = hidden
         ? `<span class="rd-name">${esc(r.name)}</span><span class="rd-status"><i class="rd-dot"></i>Sprint Pass</span>`
         : r.hasContent
-        ? `<span class="rd-name">${esc(r.name)}</span><span class="rd-status"><i class="rd-dot"></i>${STATUS[r.status]}</span>${r.openMisses ? `<span class="muted small">${r.openMisses} open miss${r.openMisses > 1 ? "es" : ""}</span>` : ""}${evidence(r) ? `<span class="muted small rd-ev">${evidence(r)}</span>` : ""}`
+        ? `<span class="rd-name">${esc(r.name)}</span><span class="rd-status"><i class="rd-dot"></i>${STATUS[r.status]}</span>${r.openMisses ? `<span class="muted small">${r.openMisses} open miss${r.openMisses > 1 ? "es" : ""}</span>` : ""}${evidence(r) ? `<span class="muted small rd-ev">${evidence(r)}</span>` : ""}${locked ? `<span class="muted small">More practice with the Sprint Pass</span>` : ""}`
         : `<span class="rd-name">${esc(r.name)}</span><span class="muted small">Coming soon</span>`;
-      const cls = `rd-cell ${locked ? "locked" : r.hasContent ? r.status : "soon"}`;
+      const cls = `rd-cell ${hidden ? "locked" : r.hasContent ? r.status : "soon"}`;
       return g ? `<button class="${cls}" data-act="guide" data-id="${g.id}">${inner}</button>` : `<div class="${cls}">${inner}</div>`;
     }).join("");
     return `
@@ -380,6 +382,76 @@
         <p class="muted small">Ready means two different problems solved, then a problem solved alone with no hints on a later day. It reflects your practice here, not a hiring prediction.</p>
         <div class="rd-grid">${cells}</div>
       </section>`;
+  }
+
+  // ---------- repair: a free user's one guided fix for the weakest paid pattern the diagnostic tested ----------
+  const openTags = pid => Object.entries(S.misses).filter(([t, m]) => !m.resolved && MISC[t] && PAT_BY_ID[pid].misconceptions.some(x => x.id === t)).map(([t]) => t);
+  function repairTarget() {
+    if (!gated() || !S.diagnostic || !META.samples) return null;
+    if (S.repair) return S.repair.done ? null : S.repair.pattern;
+    const res = S.diagnostic.results;
+    return PATTERNS.map(p => p.id).find(pid => META.samples[pid] && res[pid] && res[pid].correct < res[pid].total) || null;
+  }
+  function repairPanel() {
+    const pid = repairTarget();
+    if (!pid) return "";
+    const tags = openTags(pid);
+    return `
+      <section class="panel study algo">
+        <div>
+          <p class="eyebrow">Free repair</p>
+          <h3>${esc(PAT_BY_ID[pid].name)}</h3>
+          <p class="muted small">Your diagnostic missed this one${tags.length ? `: ${esc(MISC[tags[0]].label.toLowerCase())}` : ""}. See the fix, practice it, then try a different problem. About 10 minutes.</p>
+        </div>
+        <div class="hero-cta"><button class="btn primary" data-act="repair">${S.repair ? "Continue the repair" : "Start the repair"}</button></div>
+      </section>`;
+  }
+  function diagFindings() {
+    const res = S.diagnostic.results;
+    const rows = PATTERNS.filter(p => res[p.id]).map(p => {
+      const r = res[p.id], tags = openTags(p.id), m = tags.length && MISC[tags[0]];
+      return `<li><strong>${esc(p.name)}</strong>: ${r.correct === r.total ? "correct" : "missed"}${m ? `. ${esc(m.label)}. ${esc(m.fix)}` : ""}</li>`;
+    }).join("");
+    return `
+      <div class="panel">
+        <div class="panel-head"><h3>What the diagnostic found</h3></div>
+        <ul class="diag-list">${rows}</ul>
+        <p class="muted small">One question per pattern. It's a first signal about where to start, not a full assessment.</p>
+      </div>`;
+  }
+  function startRepair() {
+    const pid = repairTarget();
+    if (!pid) return;
+    const [recog, code] = META.samples[pid];
+    if (!BY_ID[recog] || !BY_ID[code]) { toast("This repair isn't available right now."); return; }
+    if (!S.repair) { S.repair = { pattern: pid, done: false, at: today() }; save(); ANALYTICS.track("repair_started", { pattern: pid }); }
+    clearHash();
+    run = {
+      mode: "repair", label: `Repair: ${PAT_BY_ID[pid].name}`, idx: 0, results: [],
+      entries: [{ kind: "concept", patternId: pid, guideId: null, repair: true }, { kind: "recognition", lessonId: recog }, { kind: "exercise", lessonId: code, independent: false }]
+    };
+    renderRun();
+  }
+  function renderRepairSummary() {
+    renderChips();
+    const p = PAT_BY_ID[S.repair.pattern];
+    const asked = run.results.filter(r => r.correct !== null);
+    app.innerHTML = `
+      <section class="summary">
+        <p class="eyebrow">Repair complete</p>
+        <h1>${asked.every(r => r.correct) ? "Fixed, for now." : "Good work. It's not fixed yet."}</h1>
+        <div class="sum-grid"><div class="sum-stat"><b>${asked.filter(r => r.correct).length}/${asked.length}</b><span>correct</span></div></div>
+        <div class="panel">${sessionRows(run.entries, run.results)}</div>
+        <div class="panel">
+          <h3>What comes next in ${esc(p.name)}</h3>
+          <p class="muted">A fix sticks when you solve a different problem alone a few days later. The Sprint Pass gives you the full guide, guided practice, a fresh check with no hints, and spaced review of this mistake. Hashing and Two pointers stay free.</p>
+        </div>
+        <div class="hero-cta center">
+          <button class="btn primary big" data-act="pass">See the Sprint Pass</button>
+          <button class="btn ghost" data-act="home">Back to base</button>
+        </div>
+      </section>`;
+    run = null; cur = null;
   }
 
   let unlockMsg = null;
@@ -468,6 +540,7 @@
         <button class="btn primary" data-act="pass">Get the Sprint Pass</button>
       </section>` : ""}
 
+      ${repairPanel()}
       ${readinessPanel()}
 
       <section class="panel">
@@ -874,6 +947,7 @@
           ${full
             ? `<h2>${esc(g.title)}</h2><div class="guide-body">${md(g.body)}</div>`
             : `<h2>${esc(p.name)}</h2><p class="prompt">Watch for these mistakes.</p>
+               ${entry.repair && openTags(p.id).length ? `<div class="hint"><strong>Your diagnostic answer pointed to: ${esc(MISC[openTags(p.id)[0]].label)}</strong><br>${esc(MISC[openTags(p.id)[0]].fix)}</div>` : ""}
                <div class="guide-body"><ul>${p.misconceptions.map(m => `<li><strong>${esc(m.label)}</strong> ${esc(m.fix)}</li>`).join("")}</ul></div>`}
           <div class="hero-cta"><button class="btn primary" data-act="concept-next">Continue</button></div>
         </article>
@@ -1111,6 +1185,13 @@
 
   function completeRun() {
     const t = today();
+    if (run.mode === "repair") {
+      S.repair.done = true;
+      save();
+      ANALYTICS.track("repair_completed", { pattern: S.repair.pattern, correct: run.results.filter(r => r.correct).length });
+      renderRepairSummary();
+      return;
+    }
     if (run.mode === "diagnostic") {
       CORE.recordDiagnostic(S, ctx, t, run.answers);
       ANALYTICS.track("diagnostic_completed", { correct: run.answers.filter(a => a.correct).length, total: run.answers.length });
@@ -1140,6 +1221,8 @@
       <section class="summary">
         <p class="eyebrow">Diagnostic complete</p>
         <h1>Here is where you stand.</h1>
+        ${diagFindings()}
+        ${repairPanel()}
         ${readinessPanel()}
         ${AUTH.enabled && !AUTH.user() ? authBox() : ""}
         <div class="panel">
@@ -1243,6 +1326,7 @@
         startSession(); window.scrollTo(0, 0); break;
       }
       case "session": startSession(); window.scrollTo(0, 0); break;
+      case "repair": startRepair(); window.scrollTo(0, 0); break;
       case "concept-next": conceptNext(); break;
       case "watch-ref": watchReference(); break;
       case "sign-in": go("#account"); break;

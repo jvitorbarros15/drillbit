@@ -409,7 +409,7 @@ test("migrate from v1", () => {
     items: { qa1: { seen: 3, correct: 2, wrong: 1, last: "2026-03-09", hinted: false, clean: 0 } },
     misses: {}, patterns: {}, streak: 4, best: 9, freezes: 1, lastDone: "2026-03-09",
     days: { "2026-03-09": { answered: 5, correct: 4 }, "2026-03-08": { answered: 1, correct: 1, frozen: true } },
-    drafts: { ca1: { code: "code", ts: "" } }, read: { big: 1 }, events: [], legacy: true, owner: null
+    drafts: { ca1: { code: "code", ts: "" } }, read: { big: 1 }, events: [], legacy: true, owner: null, repair: null
   });
 });
 
@@ -559,6 +559,14 @@ test("mergeProgress profile, diagnostic, drafts, read", () => {
   out = C.mergeProgress(l, sv({}));
   assert.strictEqual(out.profile.interviewDate, "2026-05-01");
   assert.strictEqual(out.diagnostic.at, "L");
+});
+
+test("mergeProgress keeps a finished repair", () => {
+  const done = { pattern: "pa", done: true, at: T }, started = { pattern: "pa", done: false, at: T };
+  assert.deepStrictEqual(C.mergeProgress(sv({ repair: done }), sv({ repair: started })).repair, done);
+  assert.deepStrictEqual(C.mergeProgress(sv({ repair: started }), sv({ repair: done })).repair, done);
+  assert.deepStrictEqual(C.mergeProgress(sv({ repair: started }), sv({})).repair, started);
+  assert.strictEqual(C.mergeProgress(sv({}), sv({})).repair, null);
 });
 
 test("mergeProgress is pure and tracks updatedAt", () => {

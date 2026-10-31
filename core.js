@@ -37,7 +37,7 @@
   const blankState = () => ({
     v: 3, profile: { interviewDate: null, language: "js" }, diagnostic: null,
     items: {}, misses: {}, patterns: {}, streak: 0, best: 0, freezes: 0, lastDone: null, days: {}, drafts: {}, read: {},
-    events: [], legacy: false, owner: null
+    events: [], legacy: false, owner: null, repair: null
   });
 
   const isObj = v => v && typeof v === "object" && !Array.isArray(v);
@@ -450,6 +450,7 @@
       drafts: ds,
       read: { ...l.read, ...r.read },
       events: core.events,
+      repair: (l.repair && l.repair.done) || !r.repair ? l.repair : r.repair,
       legacy: false,
       owner: r.owner || l.owner || null,
       updatedAt: newest(l.updatedAt, r.updatedAt)
