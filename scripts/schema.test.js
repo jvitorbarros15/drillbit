@@ -50,6 +50,21 @@ test("miss tags", () => {
   bad(validateLesson, { ...multi, misses: [null, null, null] });
 });
 
+test("plans and follow-ups", () => {
+  const plan = { approach: { options: ["a", "b"], answer: 1 }, time: { options: ["O(1)", "O(n)"], answer: 1 }, space: { options: ["O(1)", "O(n)"], answer: 0 } };
+  const fu = [{ q: "q", options: ["a", "b", "c"], answer: 2, explain: "e" }];
+  assert.deepStrictEqual(validateLesson({ ...code, plan, followups: fu }), []);
+  assert.deepStrictEqual(validateLesson({ ...code, plan: { ...plan, q: "Which one?" } }), []);
+  bad(validateLesson, { ...mcq, plan });
+  bad(validateLesson, { ...code, plan: { ...plan, time: undefined } });
+  bad(validateLesson, { ...code, plan: { ...plan, space: { options: ["O(1)", "O(1)"], answer: 0 } } });
+  bad(validateLesson, { ...code, plan: { ...plan, approach: { options: ["a", "b"], answer: 2 } } });
+  bad(validateLesson, { ...code, plan: { ...plan, extra: 1 } });
+  bad(validateLesson, { ...code, followups: [] });
+  bad(validateLesson, { ...code, followups: [{ ...fu[0], explain: "" }] });
+  bad(validateLesson, { ...code, followups: [{ ...fu[0], answer: 3 }] });
+});
+
 test("viz specs", () => {
   const ok = v => assert.deepStrictEqual(validateLesson({ ...code, viz: v }), []);
   const no = v => bad(validateLesson, { ...code, viz: v });

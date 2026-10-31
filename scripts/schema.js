@@ -4,7 +4,7 @@ const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const isObj = v => v && typeof v === "object" && !Array.isArray(v);
 
 const COMMON = ["id", "track", "level", "topic", "type", "title", "prompt", "explain", "hint"];
-const EXTRA = { mcq: ["options", "answer", "misses"], multi: ["options", "answers", "miss"], number: ["answer", "min", "max", "unit", "miss"], code: ["fn", "starter", "solution", "tests", "viz"] };
+const EXTRA = { mcq: ["options", "answer", "misses"], multi: ["options", "answers", "miss"], number: ["answer", "min", "max", "unit", "miss"], code: ["fn", "starter", "solution", "tests", "viz", "plan", "followups"] };
 const VIZ_KEYS = ["view", "watch", "pointers", "window", "arrayArg"];
 const VIZ_VIEWS = ["array-pointers", "stack", "dp-table", "binary-search"];
 const IDENT = /^[A-Za-z_$][\w$]*$/;
@@ -43,6 +43,8 @@ function validateLesson(l) {
     if (!str(l.fn) || !/^[A-Za-z_$][\w$]*$/.test(l.fn)) e.push("fn must be a valid JS identifier");
     for (const k of ["starter", "solution"]) if (!str(l[k])) e.push(`${k} must be a non-empty string`);
     if (has(l, "viz")) e.push(...validateViz(l.viz));
+    if (has(l, "plan")) e.push(...validatePlan(l.plan));
+    if (has(l, "followups")) e.push(...validateFollowups(l.followups));
     if (!Array.isArray(l.tests) || !l.tests.length) e.push("tests must be a non-empty array");
     else l.tests.forEach((t, i) => {
       const p = `tests[${i}]`;
@@ -59,6 +61,38 @@ function validateLesson(l) {
       if (has(t, "miss") && !str(t.miss)) e.push(`${p}.miss must be a non-empty string`);
     });
   }
+  return e;
+}
+
+const choiceErrors = (c, p) => {
+  if (!isObj(c)) return [`${p} must be an object`];
+  const e = [];
+  for (const k of Object.keys(c)) if (!["options", "answer"].includes(k)) e.push(`${p} unknown key ${k}`);
+  const ok = Array.isArray(c.options) && c.options.length >= 2 && c.options.every(str) && new Set(c.options).size === c.options.length;
+  if (!ok) e.push(`${p}.options must be at least 2 unique non-empty strings`);
+  else if (!idx(c.answer, c.options.length)) e.push(`${p}.answer must be an integer index into options`);
+  return e;
+};
+
+function validatePlan(p) {
+  if (!isObj(p)) return ["plan must be an object"];
+  const e = [];
+  for (const k of Object.keys(p)) if (!["q", "approach", "time", "space"].includes(k)) e.push(`plan unknown key ${k}`);
+  if (has(p, "q") && !str(p.q)) e.push("plan.q must be a non-empty string");
+  for (const k of ["approach", "time", "space"]) e.push(...choiceErrors(p[k], `plan.${k}`));
+  return e;
+}
+
+function validateFollowups(f) {
+  if (!Array.isArray(f) || !f.length) return ["followups must be a non-empty array"];
+  const e = [];
+  f.forEach((x, i) => {
+    const p = `followups[${i}]`;
+    if (!isObj(x)) { e.push(`${p} must be an object`); return; }
+    for (const k of Object.keys(x)) if (!["q", "options", "answer", "explain"].includes(k)) e.push(`${p} unknown key ${k}`);
+    for (const k of ["q", "explain"]) if (!str(x[k])) e.push(`${p}.${k} must be a non-empty string`);
+    e.push(...choiceErrors({ options: x.options, answer: x.answer }, p));
+  });
   return e;
 }
 
