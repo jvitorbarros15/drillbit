@@ -378,3 +378,18 @@ pre.sol code { background: none; border: 0; padding: 0; font-size: inherit; }
 .iv-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); }
 .hidden { display: none !important; }
 .company .src { font-size: 0.78rem; }
+
+/* plan before code, follow-ups after */
+.plan { border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; background: var(--panel); }
+.plan-lead { margin: 0 0 12px; }
+.plan-label { margin: 0 0 6px; font-weight: 600; }
+.plan-opts { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.plan-opts .opt { padding: 10px 12px; }
+.plan-ok { color: var(--good); margin: 0; }
+.followups { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
+.fu-head { margin: 0 0 10px; }
+.fu { margin-bottom: 14px; }
+.fu > p:first-child { margin: 0 0 8px; }
+.fu .opts { margin-bottom: 8px; }
+.fu .opt { padding: 10px 12px; }
+.fu-explain { margin: 0; color: var(--muted); }

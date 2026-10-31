@@ -954,7 +954,8 @@
 
     const item = BY_ID[entry.lessonId];
     const noHint = run.mode === "diagnostic" || !!entry.independent;
-    cur = { item, entry, startedAt: Date.now(), answered: false, sel: new Set(), hinted: false, noHint, response: null, firstFail: null, asking: false, firstRun: null, failedRuns: 0, errorRuns: 0, revealed: false };
+    cur = { item, entry, startedAt: Date.now(), answered: false, sel: new Set(), hinted: false, noHint, response: null, firstFail: null, asking: false, firstRun: null, failedRuns: 0, errorRuns: 0, revealed: false, planned: undefined, picks: {}, planMiss: [], fu: {} };
+    const planFirst = item.type === "code" && item.plan && run.mode !== "diagnostic";
 
     app.innerHTML = `
       <div class="run">
@@ -968,7 +969,7 @@
             ${S.items[item.id] && S.items[item.id].wrong && !S.items[item.id].correct ? `<span class="tag redo">Review</span>` : ""}
           </div>
           ${entry.kind === "review" && MISC[entry.tag] ? `<div class="notice ice">Bringing back: ${esc(MISC[entry.tag].label)}</div>` : ""}
-          ${entry.independent ? `<div class="notice good">Independent check: no hints. Passing on the first run counts as evidence for this pattern.</div>` : ""}
+          ${entry.independent ? `<div class="notice good">Independent check: no hints. ${planFirst ? "A correct plan plus a pass on the first run" : "Passing on the first run"} counts as evidence for this pattern.</div>` : ""}
           <h2>${esc(item.title)}</h2>
           <p class="prompt">${rich(item.prompt)}</p>
           <div id="body"></div>
@@ -993,9 +994,72 @@
         </form>
         <p class="muted small">Ballpark counts. Anything in a sensible range passes.</p>`;
       setTimeout(() => $("#num") && $("#num").focus(), 30);
+    } else if (planFirst) {
+      body.innerHTML = `${planForm(item)}<div id="editor-slot"></div>`;
     } else if (item.type === "code") {
-      const draft = S.drafts[item.id] ? S.drafts[item.id].code : item.starter;
-      body.innerHTML = `
+      body.innerHTML = editorHtml(item, noHint);
+      setupEditor(item);
+    }
+  }
+
+  // Interview habit: say the approach and its cost before writing code. Option order is shuffled per lesson.
+  const PLAN_PARTS = [["approach", null], ["time", "Time complexity"], ["space", "Extra space"]];
+  const PLAN_NAMES = { approach: "the approach", time: "the time complexity", space: "the space" };
+  const order = (key, n) => shuffle(Array.from({ length: n }, (_, i) => i), CORE.seededRng(key));
+  function planForm(item) {
+    return `
+      <div class="plan" id="plan">
+        <p class="plan-lead"><strong>Plan it first.</strong> Say it out loud like you would to an interviewer, then pick. Skipping is fine for practice, but only a correct plan plus a first-run pass counts as evidence.</p>
+        ${PLAN_PARTS.map(([k, label]) => {
+          const c = item.plan[k];
+          return `<div class="plan-q">
+            <p class="plan-label">${esc(label || item.plan.q || "Which approach would you pitch?")}</p>
+            <div class="opts plan-opts">${order(item.id + k, c.options.length).map(i => `<button class="opt" data-act="plan-pick" data-k="${k}" data-i="${i}"><span>${rich(c.options[i])}</span></button>`).join("")}</div>
+          </div>`;
+        }).join("")}
+        <div class="code-actions" id="plan-actions">
+          <button class="btn primary" data-act="plan-lock" disabled>Lock in plan</button>
+          <button class="btn ghost" data-act="plan-skip">Skip to code</button>
+        </div>
+      </div>`;
+  }
+
+  function pickPlan(k, i) {
+    if (!cur || cur.planned !== undefined) return;
+    cur.picks[k] = i;
+    document.querySelectorAll(`[data-act="plan-pick"][data-k="${k}"]`).forEach(b => b.classList.toggle("sel", Number(b.dataset.i) === i));
+    const lock = document.querySelector('[data-act="plan-lock"]');
+    if (lock) lock.disabled = PLAN_PARTS.some(([p]) => cur.picks[p] === undefined);
+  }
+
+  function lockPlan(skip) {
+    if (!cur || cur.planned !== undefined) return;
+    const item = cur.item;
+    cur.planMiss = skip ? [] : PLAN_PARTS.map(([k]) => k).filter(k => cur.picks[k] !== item.plan[k].answer);
+    cur.planned = !skip && !cur.planMiss.length;
+    cur.planSkipped = !!skip;
+    document.querySelectorAll('[data-act="plan-pick"]').forEach(b => {
+      const k = b.dataset.k, i = Number(b.dataset.i);
+      b.disabled = true;
+      if (skip) b.classList.add("dim");
+      else if (i === item.plan[k].answer) b.classList.add(cur.picks[k] === i ? "right" : "missed");
+      else if (cur.picks[k] === i) b.classList.add("wrong");
+      else b.classList.add("dim");
+    });
+    $("#plan-actions").innerHTML = skip
+      ? `<p class="muted small">Plan skipped. This solve counts as practice.</p>`
+      : cur.planned
+      ? `<p class="plan-ok">Plan locked in. Now write it.</p>`
+      : `<p class="muted small">Your plan missed ${cur.planMiss.map(k => PLAN_NAMES[k]).join(" and ")}. The right picks are outlined. Solving still counts as practice.</p>`;
+    ANALYTICS.track("plan_locked", { lesson: item.id, ok: cur.planned, skipped: !!skip });
+    $("#editor-slot").innerHTML = editorHtml(item, cur.noHint);
+    setupEditor(item);
+    setTimeout(() => { const ta = $("#code"); if (ta) ta.focus(); }, 30);
+  }
+
+  function editorHtml(item, noHint) {
+    const draft = S.drafts[item.id] ? S.drafts[item.id].code : item.starter;
+    return `
         <div class="editor">
           <div class="editor-head"><span>solution.js</span><span class="muted small">Tab indents. Ctrl/Cmd + Enter runs.</span></div>
           <div class="editor-body">
@@ -1012,8 +1076,6 @@
         </div>
         <div id="hint"></div>
         <div id="tests"></div>`;
-      setupEditor(item);
-    }
   }
 
   function renderConcept(entry, top) {
@@ -1199,7 +1261,7 @@
     cur.tag = tag;
     const { item, entry, correct } = cur;
     const durationMs = Date.now() - cur.startedAt;
-    const a = { lessonId: item.id, correct, tag, hinted: cur.hinted, failedRuns: cur.failedRuns, errorRuns: cur.errorRuns, revealed: cur.revealed, firstRun: cur.firstRun, id: newId(), ts: new Date().toISOString(), durationMs };
+    const a = { lessonId: item.id, correct, tag, hinted: cur.hinted, failedRuns: cur.failedRuns, errorRuns: cur.errorRuns, revealed: cur.revealed, firstRun: cur.firstRun, planned: cur.planned, id: newId(), ts: new Date().toISOString(), durationMs };
     if (run.mode === "diagnostic") run.answers.push(a);
     else {
       const pid = CORE.patternOf(item, ctx);
@@ -1219,7 +1281,8 @@
   const newId = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const attemptRow = a => ({
     item_id: a.lessonId, correct: a.correct, misconception_tag: a.tag || null, duration_ms: a.durationMs,
-    client_id: a.id, first_run: a.firstRun || null, failed_runs: a.failedRuns || 0, error_runs: a.errorRuns || 0, hinted: !!a.hinted, revealed: !!a.revealed
+    client_id: a.id, first_run: a.firstRun || null, failed_runs: a.failedRuns || 0, error_runs: a.errorRuns || 0, hinted: !!a.hinted, revealed: !!a.revealed,
+    planned: typeof a.planned === "boolean" ? a.planned : null
   });
 
   function renderFeedback() {
@@ -1236,9 +1299,11 @@
         ${cur.extra ? `<p class="fb-extra">${esc(cur.extra)}</p>` : ""}
         ${m ? `<div class="hint">${correct ? "Your first failing run showed this mistake. Passing counts as practice, and it goes in your notebook.<br>" : ""}<strong>${esc(m.label)}</strong><br>${esc(m.fix)}</div>` : ""}
         ${correct && !m && cur.failedRuns ? `<p class="muted small">Passed after ${cur.failedRuns} failing run${cur.failedRuns > 1 ? "s" : ""}. That counts as practice, not as an unaided solve.</p>` : ""}
+        ${correct && !m && !cur.failedRuns && cur.planned === false ? `<p class="muted small">${cur.planSkipped ? "You skipped the plan" : `Your plan missed ${cur.planMiss.map(k => PLAN_NAMES[k]).join(" and ")}`}. The code passed, so this counts as practice, not as an unaided solve.</p>` : ""}
         <p>${rich(item.explain)}</p>
         ${item.type === "code" && item.viz ? `<button class="btn ghost small watch-ref" data-act="watch-ref">Watch the reference solution</button><div id="watch"></div>` : ""}
         ${item.type === "code" ? `<details ${correct ? "" : "open"}><summary>Reference solution</summary><pre class="sol"><code>${esc(item.solution)}</code></pre></details>` : ""}
+        ${item.followups && run.mode !== "diagnostic" ? `<div class="followups" id="followups">${followupsHtml(item)}</div>` : ""}
         ${cur.asking ? `
           <p><strong>What went wrong?</strong></p>
           <div class="code-actions">
@@ -1246,6 +1311,31 @@
             <button class="btn ghost small" data-act="pick-miss" data-tag="">Not sure</button>
           </div>` : `<button class="btn primary" data-act="next">${nextLabel} <kbd>Enter</kbd></button>`}
       </div>`;
+  }
+
+  // What an interviewer asks after a working solve. Practice only, not part of the evidence.
+  function followupsHtml(item) {
+    return `
+      <p class="fu-head"><strong>The interviewer follows up</strong> <span class="muted small">Not graded. Answer before you look.</span></p>
+      ${item.followups.map((f, q) => {
+        const got = cur.fu[q];
+        const done = got !== undefined;
+        return `<div class="fu">
+          <p>${rich(f.q)}</p>
+          <div class="opts">${order(item.id + "fu" + q, f.options.length).map(i => {
+            const cls = !done ? "" : i === f.answer ? "right" : i === got ? "wrong" : "dim";
+            return `<button class="opt ${cls}" data-act="fu-pick" data-q="${q}" data-i="${i}" ${done ? "disabled" : ""}><span>${rich(f.options[i])}</span></button>`;
+          }).join("")}</div>
+          ${done ? `<p class="fu-explain">${rich(f.explain)}</p>` : ""}
+        </div>`;
+      }).join("")}`;
+  }
+
+  function pickFollowup(q, i) {
+    if (!cur || !cur.answered || !cur.item.followups || cur.fu[q] !== undefined) return;
+    cur.fu[q] = i;
+    ANALYTICS.track("followup_answered", { lesson: cur.item.id, q, correct: i === cur.item.followups[q].answer });
+    $("#followups").innerHTML = followupsHtml(cur.item);
   }
 
   function next() {
@@ -1462,6 +1552,10 @@
       case "opt": chooseOption(Number(el.dataset.i)); break;
       case "submit-multi": submitMulti(); break;
       case "run-tests": runTests(); break;
+      case "plan-pick": pickPlan(el.dataset.k, Number(el.dataset.i)); break;
+      case "plan-lock": lockPlan(false); break;
+      case "plan-skip": lockPlan(true); break;
+      case "fu-pick": pickFollowup(Number(el.dataset.q), Number(el.dataset.i)); break;
       case "hint": if (cur && !cur.noHint) { cur.hinted = true; $("#hint").innerHTML = `<div class="hint">${rich(cur.item.hint || "No hint for this one. Trust yourself.")}</div>`; } break;
       case "give-up": if (cur && !cur.answered) { cur.revealed = true; finish(false); } break;
       case "pick-miss": if (cur && cur.asking) commit(el.dataset.tag || null); break;
