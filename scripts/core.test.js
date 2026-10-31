@@ -168,6 +168,9 @@ test("independent check rules", () => {
   assert.strictEqual(rec(won(), { ...ok, diagnostic: true }).patterns.pa.check, null);
   assert.strictEqual(rec(won(), { ...ok, failedRuns: 1 }).patterns.pa.check, null);
   assert.strictEqual(rec(won(), { ...ok, revealed: true }).patterns.pa.check, null);
+  assert.strictEqual(rec(won(), { ...ok, planned: false }).patterns.pa.check, null, "a skipped or wrong plan makes the solve practice");
+  assert.strictEqual(rec(won(), { ...ok, planned: true }).patterns.pa.check.kind, "fresh");
+  assert.strictEqual(rec(won(), { ...ok, planned: false }).items.ca1.clean, 0);
   assert.deepStrictEqual(rec(won(), { ...ok, errorRuns: 2 }).patterns.pa.check.kind, "fresh", "syntax errors are not a conceptual miss");
   assert.strictEqual(rec(won(), { lessonId: "qa2", correct: true }).patterns.pa.check, null, "recognition items never count");
   const seenBefore = rec(won(), { lessonId: "ca1", correct: false }, "2026-03-01");
@@ -227,7 +230,7 @@ test("attempts are logged as events and replays are ignored", () => {
   const s = rec(st(), { lessonId: "ca1", correct: false, tag: "pa.m1", id: "e1", ts: "2026-03-10T10:00:00Z", failedRuns: 2 });
   assert.deepStrictEqual(s.events, [{
     id: "e1", ts: "2026-03-10T10:00:00Z", at: T, lessonId: "ca1", pattern: "pa", type: "code", correct: false, tag: "pa.m1",
-    hinted: false, failedRuns: 2, errorRuns: 0, revealed: false, reviewOf: null, diagnostic: false
+    hinted: false, failedRuns: 2, errorRuns: 0, revealed: false, planned: null, reviewOf: null, diagnostic: false
   }]);
   rec(s, { lessonId: "ca1", correct: false, tag: "pa.m1", id: "e1" });
   assert.strictEqual(s.items.ca1.seen, 1);

@@ -136,9 +136,11 @@
   // An attempt. failedRuns counts test runs with failing tests before the final one (syntax and runtime
   // errors are errorRuns and don't count against independence). revealed means the solution was shown.
   // id and ts identify the attempt so sync can replay it on another device exactly once.
+  // planned is false when the lesson asked for a plan first and it was skipped or wrong, null when it had none.
   function recordAttempt(state, ctx, today, a) {
     const { lessonId, correct, tag, hinted, reviewOf, diagnostic } = a;
     const failedRuns = a.failedRuns || 0, errorRuns = a.errorRuns || 0, revealed = !!a.revealed;
+    const planned = typeof a.planned === "boolean" ? a.planned : null;
     const I = idx(ctx);
     // a replayed attempt on a lesson this device can't see (paid content) still carries its pattern and type
     const lesson = I.byId.get(lessonId) || (a.pattern !== undefined ? { id: lessonId, track: a.pattern ? "algo" : "sd", type: a.type, pattern: a.pattern } : null);
@@ -150,7 +152,7 @@
     it.seen++; it.last = today;
     if (correct) it.correct++; else it.wrong++;
     if (hinted) it.hinted = true;
-    const unaided = !!correct && !hinted && !revealed && failedRuns === 0;
+    const unaided = !!correct && !hinted && !revealed && failedRuns === 0 && planned !== false;
     if (unaided) it.clean = (it.clean || 0) + 1;
     const d = state.days[today] || (state.days[today] = { answered: 0, correct: 0 });
     d.answered = (d.answered || 0) + 1;
@@ -198,7 +200,7 @@
 
     state.events.push({
       id: a.id || null, ts: a.ts || null, at: today, lessonId, pattern: pid || null, type: lesson.type,
-      correct: !!correct, tag: tag || null, hinted: !!hinted, failedRuns, errorRuns, revealed,
+      correct: !!correct, tag: tag || null, hinted: !!hinted, failedRuns, errorRuns, revealed, planned,
       reviewOf: reviewOf || null, diagnostic: !!diagnostic
     });
     if (state.events.length > EVENT_CAP) state.events.splice(0, state.events.length - EVENT_CAP);

@@ -17,6 +17,7 @@ test.before(async () => {
   await db.exec(read("supabase/migrations/20261029010000_reminders.sql"));
   await db.exec(read("supabase/migrations/20261030000000_attempt_detail.sql"));
   await db.exec(read("supabase/migrations/20261030010000_push.sql"));
+  await db.exec(read("supabase/migrations/20261031000000_attempt_plan.sql"));
   await db.exec(`
     insert into auth.users (id, email) values ('${A}', 'a@x.test'), ('${B}', 'b@x.test');
     insert into public.attempts (user_id, item_id, correct) values ('${A}', 'q1', true), ('${B}', 'q2', false);
@@ -75,6 +76,9 @@ test("attempts record how the attempt went", async () => {
   assert.deepStrictEqual([r.first_run, r.failed_runs, r.error_runs], ["fail", 2, 1]);
   await assert.rejects(db.query("insert into public.attempts (item_id, correct, first_run) values ('q5', true, 'maybe')"), /check constraint/);
   await assert.rejects(db.query("insert into public.attempts (item_id, correct, failed_runs) values ('q5', true, -1)"), /check constraint/);
+  await db.query("insert into public.attempts (item_id, correct, planned) values ('q6', true, false), ('q7', true, null)");
+  const p = await rows("select item_id, planned from public.attempts where item_id in ('q6', 'q7') order by item_id");
+  assert.deepStrictEqual(p.map(r => r.planned), [false, null]);
 });
 
 test("push subscriptions: own insert, select and delete only", async () => {
