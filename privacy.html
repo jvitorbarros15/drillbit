@@ -29,6 +29,7 @@
       <li><b>If you sign in.</b> Your account data is stored in Supabase: your email, your progress, your answer attempts (with the misconception tag, how long you took, how many test runs failed or errored before the last one, and whether you used a hint or revealed the solution; attempt records never include your code, though unsent drafts are saved as part of your progress), your review queue, your interview date, and your purchase records (entitlements).</li>
       <li><b>Payments.</b> Payments are handled by Stripe. Drillbit never sees or stores your card number. We receive the payment and checkout session ids.</li>
       <li><b>Reminder emails.</b> If reminder emails are enabled, they are sent through Resend.</li>
+      <li><b>Browser notifications.</b> If you turn them on, we store your browser's push subscription (an address your browser's push service gives us, plus encryption keys) so we can send reminders. Turning them off or signing out on that device deletes it.</li>
       <li><b>No ad trackers, and we do not sell your data.</b></li>
     </ul>
 

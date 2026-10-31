@@ -9,7 +9,7 @@ Short daily sessions for algorithm patterns, plus system design practice. Take a
 - **Readiness map**: 13 algorithm patterns, each marked New, Learning, Shaky, Ready or Review due, with open misconceptions and the date of the latest evidence. Ready needs two different problems solved, then a coding problem solved alone (no hints, passing on the first test run) on a later day than the first win. The last unseen coding problem in each pattern is held back for that check. Once every problem has been seen, a retry of one never solved unaided counts, and is labeled a retry. Ready turns into Review due after 30 days. Click a pattern to open its guide.
 - **Daily session**: three steps picked from your schedule: a review of something you missed, a recognition question, a concept guide or an exercise, and an independent check with no hints once you have solved something in the pattern. The session is fixed for the day, so a reload resumes where you left off. Finishing it extends your streak.
 - **Misconception tracking**: a wrong answer is tagged with the mistake behind it, from the answer you picked, the failing test, or your own choice. Tagged misses come back after 1, 3 and 7 days until you get them right. A coding answer that passes after failing runs counts as practice, not an unaided solve; if a failing run showed a known mistake, it goes in the notebook and comes back in 3 days. Syntax and runtime errors don't count as conceptual misses.
-- **Interview date**: optional. The plan shows a countdown, your current focus pattern, and a final review week.
+- **Interview date and company**: optional. The plan shows a countdown, your current focus pattern, and a final review week. Pick Google, Amazon, Meta, Microsoft, Apple or type another company. Each profile in `companies.js` uses only what that company publishes about its own interviews, with a source link on every fact and a checked date. Patterns a company names (Meta names binary trees, Microsoft names its data structures and sorting) move to the front of the plan right after your diagnosed weak spots. Google and Apple don't publish a topic list we could verify, and their profiles say so.
 - **Learn**: 18 study guides that cover every topic in the question bank. Each has the core idea, a code template, common traps, and a button to drill only that topic.
 - **Interactive visualizers** inside the guides: a Big O growth lab, step-through binary search, sliding window, monotonic stack, min heap, BFS on a grid you can draw walls on, a coin change DP table, a back of the envelope estimator, an LRU cache simulator, and a consistent hashing ring with virtual nodes.
 - **Practice**: five levels per track (L1 Warm-up to L5 Brutal). Clear 60% of a level to unlock the next one, separately for each track. Topic drills from the guides ignore locks. System design lives here and in Learn, and is not part of the daily session or the readiness map.
@@ -125,6 +125,17 @@ npm test
 ## Analytics
 
 Set `POSTHOG_KEY` (and optionally `POSTHOG_HOST`) at build time for the browser events and in the server environment for the webhook events. Without a key every call is a no-op.
+
+## Reminders and notifications
+
+One message a day at most, at the hour the user picks, by email and optionally as a browser notification:
+
+- Daily while the user is active.
+- After a break, only on days 3, 7, 14 and 30 away, then nothing more until they come back.
+- 14, 7, 3 and 1 days before the interview date, even during a break.
+- Nothing on a day the session is already done.
+
+Browser push needs `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` on the server (generate with `npx web-push generate-vapid-keys`), plus `supabase/migrations/20261030010000_push.sql`. The build writes only the public key into `config.js`. `sw.js` shows the notification and opens the app on click. Signing out removes the browser's subscription. Dead subscriptions are deleted when the push service reports them gone. iPhone only supports web push after the site is added to the home screen.
 
 ## Reminder emails
 
