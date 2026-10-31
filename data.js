@@ -1,6 +1,7 @@
 // Lesson bank. Add your own items at the bottom; the app picks them up automatically.
 // Types: mcq (options + answer index), multi (options + answers[]), number (answer, min, max, unit),
-// code (fn, starter, tests, solution). Use `backticks` inside text for inline code.
+// code (fn, starter, tests, solution, and optionally plan: the approach, time and space picks asked before the
+// editor opens, and followups: interviewer questions shown after the solve). Use `backticks` inside text for inline code.
 
 const LESSONS = [
   // ============================ ALGORITHMS, L1 WARM-UP ============================
@@ -38,6 +39,15 @@ const LESSONS = [
   }
   return [];
 }`,
+    plan: {
+      approach: { options: ["Check every pair with two nested loops","One pass with a hash map from value to index","Sort, then walk two pointers in from both ends","Binary search for each number's partner"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "The interviewer says the array is already sorted and memory is tight. What do you switch to?", options: ["Keep the hash map, it's still O(n)","Two pointers from both ends: O(n) time, O(1) extra space","Binary search for each partner: O(n log n) time"], answer: 1, explain: "Sorted input lets two pointers finish in one pass with no extra memory: if the sum is too small move the left pointer up, if it's too big move the right one down. Binary search per element also uses O(1) space but costs O(n log n)." },
+      { q: "Why check for the partner before storing the current number?", options: ["It's faster","So a number can't pair with itself: with [3, 4] and target 6, storing first returns [0, 0]","Because Map.set overwrites older indices"], answer: 1, explain: "If you store nums[i] first, then look up target - nums[i], a value that is exactly half the target finds itself. Checking first means the map only holds earlier indices." }
+    ],
     explain: "Trade memory for time. A Map from value to index turns the O(n²) double loop into a single O(n) pass. The 'remember what you've already seen' move shows up everywhere, from dedupe jobs to hash joins inside databases."
   },
   {
@@ -80,6 +90,15 @@ const LESSONS = [
   return stack.length === 0;
 }`,
     viz: { view: "stack", watch: ["stack"] },
+    plan: {
+      approach: { options: ["Count openers and closers and compare the totals","Push openers on a stack; on each closer, pop and check it matches","Compare the string with its reverse","Sort the characters and pair them up"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Which input does `count('(') === count(')')` wrongly accept?", options: ["'(()'","')('","'()()'"], answer: 1, explain: "')(' has one of each but closes before it opens. Order matters, which is why you need a stack, or a counter that fails the moment it goes negative." },
+      { q: "Now only `(` and `)` can appear. Can you beat O(n) space?", options: ["No, you still need the stack","Yes: one counter, +1 on '(' and -1 on ')', fail if it ever drops below zero","Yes: sort the string first"], answer: 1, explain: "With one bracket type the stack only ever holds '(', so its size is all you need. A counter does that in O(1) space, and failing when it goes negative still rejects ')('." }
+    ],
     explain: "A stack mirrors nesting: push openers, pop on closers, check that the pop matches. Parsers, undo history and the call stack itself all run on this idea."
   },
   {
@@ -114,6 +133,15 @@ const LESSONS = [
   }
   return best;
 }`,
+    plan: {
+      approach: { options: ["Try every buy day and sell day pair","Sort the prices and take max minus min","One pass tracking the lowest price so far and the best profit","Binary search for the best sell day"], answer: 2 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "Why doesn't sorting and taking max minus min work?", options: ["Sorting is too slow","It loses the order, so you could sell before you buy","It only fails when prices repeat"], answer: 1, explain: "[5, 1] sorted gives 5 - 1 = 4, but that sells on day 0 and buys on day 1. The real answer is 0." },
+      { q: "Now you can buy and sell as many times as you like, holding one share at a time. What changes?", options: ["You need DP over every pair of days, O(n²)","Add up every positive day to day increase, still O(n)","Nothing, the answer is the same"], answer: 1, explain: "Any rising stretch splits into one day gains, so summing every positive prices[i] - prices[i - 1] is optimal. One pass, O(1) space." }
+    ],
     explain: "One pass with a running minimum. The pattern 'best answer ending here, using a small summary of the past' is the seed of dynamic programming."
   },
   {
@@ -156,6 +184,15 @@ const LESSONS = [
   return lo;
 }`,
     viz: { view: "binary-search", watch: ["lo", "hi", "target"], pointers: ["lo", "hi"], arrayArg: 0 },
+    plan: {
+      approach: { options: ["Scan from the left until nums[i] >= target","Binary search on [lo, hi): move hi to mid when nums[mid] >= target, else lo to mid + 1","Binary search that returns as soon as nums[mid] === target","Call nums.indexOf(target)"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 1 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "Why does returning as soon as nums[mid] === target fail?", options: ["It's slower","With duplicates like [2, 2, 2] it can land on a later 2, not the first","mid can overflow"], answer: 1, explain: "Lower bound wants the first index, so a match only tells you the answer is at mid or to its left. Keep shrinking hi until lo meets it." },
+      { q: "How do you get the last index where nums[i] <= target?", options: ["lowerBound(nums, target) + 1","Run the same search on the reversed array","Find the first index with nums[i] > target (an upper bound), then step one left"], answer: 2, explain: "Change the test to nums[mid] <= target to move lo, which finds the first value bigger than target. One step left is the last value <= target, and it's -1 when every element is bigger." }
+    ],
     explain: "This is lower_bound, the one binary search variant worth memorizing. The half-open range removes most off-by-one bugs. It powers 'first event after timestamp X', range queries and cursor pagination."
   },
   {
@@ -239,6 +276,15 @@ const LESSONS = [
       if (g[r][c] === '1') { count++; sink(r, c); }
   return count;
 }`,
+    plan: {
+      approach: { options: ["Count every '1' cell","For each land cell not yet visited, count an island and flood fill to sink all of it","Union every pair of land cells","Count rows that contain land"], answer: 1 },
+      time: { options: ["O(rows × cols)","O((rows × cols)²)","O(rows + cols)","O(log(rows × cols))"], answer: 0 },
+      space: { options: ["O(1)","O(rows + cols)","O(rows × cols)","O(rows)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why use an explicit stack instead of recursion here?", options: ["It's asymptotically faster","A 1000 × 1000 grid of land would recurse a million calls deep and overflow the call stack","Recursion can't do flood fill"], answer: 1, explain: "Both visit each cell once. Recursion depth equals the size of the island in the worst case, and JavaScript engines overflow long before a million frames. A stack array lives on the heap." },
+      { q: "Diagonal neighbors now connect too. What changes?", options: ["Nothing","Push 8 neighbors instead of 4; the complexity stays the same","You have to switch from DFS to BFS"], answer: 1, explain: "Connectivity is just the neighbor list. Each cell still gets sunk once, so it's O(rows × cols) either way, and DFS or BFS both work." }
+    ],
     explain: "Flood fill, O(rows × cols). An explicit stack instead of recursion avoids stack overflows on huge grids, which is a real production concern. Same idea as finding connected components in networks or dependency graphs."
   },
   {
@@ -324,6 +370,16 @@ const LESSONS = [
     else return a[target];
   }
 }`,
+    plan: {
+      q: "Which approach hits average O(n)?",
+      approach: { options: ["Sort descending and take index k - 1","Quickselect: partition around a random pivot and keep only the side that holds the answer","Binary search on the array","Scan k times, removing the max each time"], answer: 1 },
+      time: { options: ["O(n log n) always","O(n) on average, O(n²) in the worst case","O(log n)","O(k)"], answer: 1 },
+      space: { options: ["O(1) always","O(k)","O(n), because it copies the input","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why pick the pivot at random?", options: ["Correctness requires it","A fixed pivot hits O(n²) on sorted input; a random one makes that very unlikely","It uses less memory"], answer: 1, explain: "Always taking the first element on sorted input peels off one element per round. Random pivots give expected O(n) whatever the input order." },
+      { q: "Numbers now arrive one at a time and you need the k-th largest after each. What do you keep?", options: ["Re-run quickselect on everything each time","A min-heap of the k largest so far: O(log k) per number","Sort once at the end"], answer: 1, explain: "The heap's root is the k-th largest. A new number bigger than the root replaces it. That's O(log k) per update and O(k) memory." }
+    ],
     explain: "Quickselect averages O(n) because each round throws away part of the array. A size-k min-heap gives O(n log k) and handles streams. Sorting is O(n log n) and honestly fine in most real code, but you should know the trade-off. The 3-way partition handles lots of duplicates."
   },
   {
@@ -604,6 +660,15 @@ const LESSONS = [
   }
   return water;
 }`,
+    plan: {
+      approach: { options: ["For each bar, scan left and right for the tallest walls","Sum of (tallest bar minus each bar)","Two pointers from both ends, always moving the side with the lower wall","Sort the heights first"], answer: 2 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "Why is it safe to move the pointer on the lower side?", options: ["Water there is capped by that side's max, because the other side already has a taller wall","It isn't always safe, you need both maxes precomputed","Lower bars never hold water"], answer: 0, explain: "If h[l] < h[r], the right side has a wall at least as tall as anything on the left, so the water at l depends only on leftMax." },
+      { q: "What's a simpler version to say out loud before you optimize?", options: ["Brute force every subarray","Divide and conquer on halves","Precompute leftMax[] and rightMax[], then water[i] = min(leftMax[i], rightMax[i]) - h[i]"], answer: 2, explain: "Two prefix max arrays give O(n) time and O(n) space and are easy to get right. The two pointer version just drops the arrays. Stating the simple one first shows the interviewer where the idea comes from." }
+    ],
     explain: "Move inward from whichever side is lower. That side's max is the binding constraint, since the other side is known to be at least as tall, so you can settle it right away. O(n) time, O(1) space."
   },
   {
@@ -1065,6 +1130,15 @@ const LESSONS = [
   }
   return false;
 }`,
+    plan: {
+      approach: { options: ["Compare every pair","Add each value to a Set and stop when it's already there","Compare the sum to n(n + 1) / 2","Binary search for each value"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "The interviewer says no extra memory. What's your fallback?", options: ["Sort in place and compare neighbors: O(n log n) time, O(1) extra","Keep the Set","Compare every pair: O(n²)"], answer: 0, explain: "Sorting puts duplicates next to each other. It mutates the input, so say that and ask whether it's allowed. The pair loop also uses no memory but times out." },
+      { q: "Now: is there a duplicate within distance k, so |i - j| <= k?", options: ["Sort first, then compare neighbors","Keep a Set of the last k values, adding the new one and dropping the one that falls out","Two nested loops limited to k"], answer: 1, explain: "A sliding window Set holds only the values close enough to count. O(n) time, O(k) space. The nested loop works but costs O(n·k)." }
+    ],
     explain: "One pass with a Set is O(n) time and O(n) space. Sorting first and checking neighbors is O(n log n) with O(1) extra space, a fair trade when memory is tight. The pairwise check is O(n²), which is 5 billion comparisons at n = 100k."
   },
   {
@@ -1094,6 +1168,16 @@ const LESSONS = [
   }
   return true;
 }`,
+    plan: {
+      q: "Which approach uses O(1) extra space?",
+      approach: { options: ["Build a cleaned, reversed copy and compare","Two pointers from both ends, skipping anything that isn't a letter or digit","Count characters and allow at most one odd count","Push half the characters on a stack"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "What should an empty string, or '.,!', return?", options: ["false","true: nothing left to compare reads the same both ways","Throw an error"], answer: 1, explain: "After cleaning there are no characters, and an empty string is a palindrome. Saying edge cases like this out loud is part of what interviewers grade." },
+      { q: "Now you may delete at most one character. What changes?", options: ["On the first mismatch, try skipping s[i] or skipping s[j] and check the rest with two pointers: still O(n)","Try deleting every character: O(n²)","It can't be done"], answer: 0, explain: "Only the first mismatch matters. Check both ways of removing one side, each a plain two pointer pass." }
+    ],
     explain: "Two pointers walking inward check the string in O(n) time with O(1) extra space. Building a cleaned copy and reversing it also works, but costs O(n) memory. Note that `_` is not alphanumeric, a classic edge case."
   },
   {
@@ -1131,6 +1215,15 @@ const LESSONS = [
   return [];
 }`,
     viz: { view: "array-pointers", watch: ["i", "j"], pointers: ["i", "j"], window: ["i", "j"], arrayArg: 0 },
+    plan: {
+      approach: { options: ["Hash map from value to index","Two pointers: move the left one up if the sum is too small, the right one down if too big","Two nested loops","Binary search for each number's partner"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "Why can you drop nums[i] when the sum is too small?", options: ["Its best possible partner is nums[j], the largest left, and even that isn't enough","Because i < j","You can't, it might be the answer later"], answer: 0, explain: "Every other partner for nums[i] is smaller than nums[j], so no pair with nums[i] can reach target. The same logic drops nums[j] when the sum is too big." },
+      { q: "How would you extend this to three numbers that sum to target?", options: ["Three nested loops is the best possible","Fix each i, then run this two pointer scan on the rest: O(n²)","Hash every triple"], answer: 1, explain: "Sort once, then for each i look for a pair summing to target - nums[i] in the part to its right. n scans of O(n) each." }
+    ],
     explain: "Sorted input is a gift. If the sum is too small, the left number can't be part of any answer with a smaller right number, so it's safe to drop it. Each step discards one candidate, giving O(n) time and O(1) space, better on memory than the hash map version of Two Sum."
   },
   {
@@ -1164,6 +1257,15 @@ const LESSONS = [
   for (let i = 0; i < s.length; i++) if (count.get(s[i]) === 1) return i;
   return -1;
 }`,
+    plan: {
+      approach: { options: ["For each character, scan the whole string to count it","Count every character in a map, then scan again for the first with count 1","Sort the string","Keep a Set of characters already seen"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(n²)","O(number of distinct characters)","O(log n)","O(n log n)"], answer: 1 }
+    },
+    followups: [
+      { q: "Input is only lowercase a to z. How does that change space?", options: ["No change","It becomes O(n)","It becomes O(1): an array of 26 counts"], answer: 2, explain: "The map can never hold more than 26 keys, so its size doesn't grow with n. A fixed array of 26 also skips hashing." },
+      { q: "Characters arrive as a stream, and after each one you're asked for the first unique so far. What do you keep?", options: ["Counts plus a queue of candidates; pop from the front while its count is above 1","Re-scan everything each time","A sorted array of characters"], answer: 0, explain: "Each character enters the queue once and leaves at most once, so each query is O(1) amortized." }
+    ],
     explain: "Counting with a hash map is the bread and butter of string problems. Two linear passes is still O(n). Calling `indexOf` and `lastIndexOf` for each character looks shorter but is O(n²)."
   },
   {
@@ -1198,6 +1300,15 @@ const LESSONS = [
   return cur;
 }`,
     viz: { view: "dp-table", watch: ["cur", "prev"], arrayArg: 0 },
+    plan: {
+      approach: { options: ["Take every other house, starting at 0 or 1, whichever sums higher","DP: best(i) = max(best(i - 1), best(i - 2) + nums[i]), keeping only the last two values","Try every subset of houses","Greedy: keep robbing the richest house that's still allowed"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "Which input breaks 'take every other house'?", options: ["[2, 1, 1, 2]","[1, 2, 3]","[5]"], answer: 0, explain: "Both alternating sums are 3, but robbing the first and last houses gives 4. Skipping two in a row is sometimes right, which is why it's DP and not a fixed pattern." },
+      { q: "The houses are in a circle, so the first and last are neighbors. How?", options: ["It can't be done in O(n)","Run the same DP on houses 0 to n - 2 and on 1 to n - 1, and take the larger","Drop the cheapest house and run it once"], answer: 1, explain: "You never take both the first and the last, so one of the two straight-line runs contains the best answer. Handle a single house separately." }
+    ],
     explain: "The recurrence is best(i) = max(best(i-1), best(i-2) + nums[i]). Naive recursion is exponential, memoizing makes it O(n), and noticing you only need two previous values gets space down to O(1). That progression is the whole DP playbook in miniature."
   },
   {
@@ -1449,6 +1560,15 @@ const LESSONS = [
   }
   return best;
 }`,
+    plan: {
+      approach: { options: ["Check every substring","Expand around each center, both odd (i, i) and even (i, i + 1)","Reverse the string and find the longest common substring","Two pointers from both ends of the whole string"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 4 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "Why expand from both (i, i) and (i, i + 1)?", options: ["Even length palindromes like 'abba' have no single middle character","To double check the odd ones","It's faster"], answer: 0, explain: "There are 2n - 1 centers: n characters and n - 1 gaps between them. Skipping the gaps misses every even length answer." },
+      { q: "The interviewer asks whether O(n) is possible.", options: ["No, O(n²) is the lower bound","Yes, with a hash set of substrings","Yes, Manacher's algorithm, though center expansion is the usual expected answer"], answer: 2, explain: "Manacher's reuses mirror information to reach O(n). It's good to know it exists. In an interview, center expansion plus a clear complexity statement is normally enough." }
+    ],
     explain: "Expand around center is O(n²) time and O(1) space, simple and fast enough for most inputs. Manacher's algorithm does it in O(n) by reusing mirror information, but it's rarely expected. Handle even length centers too, or 'cbbd' fails."
   },
   {
@@ -2238,6 +2358,15 @@ const LESSONS = [
   }
   return best;
 }`,
+    plan: {
+      approach: { options: ["Sum every window from scratch","Slide the window: add the number coming in, subtract the one leaving","Sort and add up the k largest","Kadane's algorithm"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "Why is sorting and adding the k largest wrong?", options: ["Sorting is too slow","Negatives break sorting","The k numbers have to be consecutive"], answer: 2, explain: "Sorting throws away position. [5, -9, 5] with k = 2 has a best window of -4, not 10." },
+      { q: "Now the window can be any length, at least 1. What changes?", options: ["Kadane's: keep a running sum, and restart it from the current number when that's larger","Use the same sliding window with k = n","It needs O(n²)"], answer: 0, explain: "With no fixed length, the question is just whether the best sum ending here should extend the previous one. One pass, O(1) space." }
+    ],
     explain: "A window of fixed size slides one step at a time, so its sum changes by the number entering minus the number leaving. Each slide is O(1) and the whole scan is O(n). Re-adding all k values for every window is O(n times k), about 10^11 steps on the big test. Start `best` from the first window rather than 0, since every number can be negative."
   },
   {
