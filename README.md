@@ -14,6 +14,7 @@ Short daily sessions for algorithm patterns, plus system design practice. Take a
 - **Interactive visualizers** inside the guides: a Big O growth lab, step-through binary search, sliding window, monotonic stack, min heap, BFS on a grid you can draw walls on, a coin change DP table, a back of the envelope estimator, an LRU cache simulator, and a consistent hashing ring with virtual nodes.
 - **Practice**: five levels per track (L1 Warm-up to L5 Brutal). Clear 60% of a level to unlock the next one, separately for each track. Topic drills from the guides ignore locks. System design lives here and in Learn, and is not part of the daily session or the readiness map.
 - **Real coding**: 32 challenges run in your browser against tests, with a 4 second time limit. Many tests use 100k+ inputs, so slow solutions fail.
+- **Plan first, then follow-ups**: the 14 free coding problems ask for the approach, time complexity and extra space before the editor opens, the way an interviewer wants it said out loud. Skipping or missing the plan is fine for practice, but the solve then doesn't count as unaided, so it can't be an independent check. After the tests pass, two interviewer follow-ups (a changed constraint, an edge case, the next variant) appear with explanations. They're practice and don't affect readiness. Paid problems don't have plans yet, so for now they count without one.
 - **Estimation drills**: back of the envelope questions (QPS, storage, bandwidth) that accept a sensible range.
 - **Streak + freezes**: every 7 day streak earns a freeze (max 2). A freeze covers a missed day automatically.
 
@@ -104,7 +105,7 @@ Copy an existing item in `data.js`, give it a unique `id`, a `track` (`algo` or 
 - `mcq`: `options` + `answer` (index)
 - `multi`: `options` + `answers` (array of indexes)
 - `number`: `answer`, `min`, `max`, `unit`
-- `code`: `fn`, `starter`, `tests` (`args` + `expected`, or `argsCode` / `expectedCode` for big generated inputs), `solution`, `hint`
+- `code`: `fn`, `starter`, `tests` (`args` + `expected`, or `argsCode` / `expectedCode` for big generated inputs), `solution`, `hint`, and optionally `plan` (`approach`, `time` and `space`, each `options` + `answer`, plus an optional `q` for the approach question) and `followups` (each `q`, `options`, `answer`, `explain`)
 
 Every topic must be listed in some guide's `topics` in `guides.js`, so missed questions can link to a guide.
 
