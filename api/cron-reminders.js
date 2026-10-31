@@ -16,7 +16,7 @@ const localParts = (now, timeZone) => {
   return { date: `${get("year")}-${get("month")}-${get("day")}`, hour: Number(get("hour")) };
 };
 
-const create = ({ db, sendEmail, unsubscribe, config, contentFor, now = () => new Date() }) => async (req, res) => {
+const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFor, now = () => new Date() }) => async (req, res) => {
   if (req.method !== "POST") { res.setHeader("Allow", "POST"); return send(res, 405, { error: "Method not allowed" }); }
   const given = bearer(req);
   if (!config.cronSecret || !given || !same(given, config.cronSecret)) return send(res, 401, { error: "Unauthorized" });
@@ -30,16 +30,35 @@ const create = ({ db, sendEmail, unsubscribe, config, contentFor, now = () => ne
     const day = row.progress && row.progress.days && row.progress.days[date];
     if (hour !== row.reminder_hour || row.last_reminder_on === date || (day && day.done)) { skipped++; continue; }
     try {
-      const to = await db.emailOf(row.id);
-      if (!to) { skipped++; continue; }
       const { active } = await db.access(row.id).catch(() => ({ active: false }));
       const msg = buildReminder(row.progress, contentFor(active), date, active ? null : FREE_PATTERNS);
-      const unsubUrl = `${base}/api/unsubscribe?u=${encodeURIComponent(row.id)}&t=${unsubscribe.token(row.id)}`;
-      const { text, html } = compose(msg, base, unsubUrl);
-      await sendEmail({
-        to, subject: msg.subject, text, html,
-        headers: { "List-Unsubscribe": `<${unsubUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
-      });
+      if (!msg) { skipped++; continue; }
+      let delivered = false;
+      if (row.reminders_enabled !== false) {
+        try {
+          const to = await db.emailOf(row.id);
+          if (to) {
+            const unsubUrl = `${base}/api/unsubscribe?u=${encodeURIComponent(row.id)}&t=${unsubscribe.token(row.id)}`;
+            const { text, html } = compose(msg, base, unsubUrl);
+            await sendEmail({
+              to, subject: msg.subject, text, html,
+              headers: { "List-Unsubscribe": `<${unsubUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
+            });
+            delivered = true;
+          }
+        } catch (e) { console.error("reminder email failed", row.id, e && e.message); }
+      }
+      if (row.push_enabled && sendPush) {
+        const payload = { title: msg.subject.replace(/^Drillbit: /, ""), body: msg.lines[0] || "", url: base || "/" };
+        for (const sub of await db.pushSubscriptions(row.id)) {
+          try {
+            const r = await sendPush(sub, payload);
+            if (r && r.gone) await db.deletePushSubscription(sub.endpoint);
+            else delivered = true;
+          } catch (e) { console.error("reminder push failed", row.id, e && e.message); }
+        }
+      }
+      if (!delivered) { skipped++; continue; }
       await db.markReminded(row.id, date);
       sent++;
     } catch (e) {

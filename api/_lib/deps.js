@@ -2,6 +2,7 @@ const Stripe = require("stripe");
 const { createClient } = require("@supabase/supabase-js");
 const { createAnalytics } = require("./analytics");
 const { createSendEmail } = require("./email");
+const { createSendPush } = require("./push");
 const { createUnsubscribe } = require("./unsubscribe");
 const { contentFor } = require("./reminder");
 
@@ -25,8 +26,8 @@ function buildDeps(env = process.env) {
       return rpc("revoke_entitlement", { p_payment_intent: paymentIntent });
     },
     async reminderCandidates() {
-      const { data, error } = await sb.from("profiles").select("id, progress, reminder_hour, timezone, last_reminder_on")
-        .eq("reminders_enabled", true).not("reminder_hour", "is", null);
+      const { data, error } = await sb.from("profiles").select("id, progress, reminder_hour, timezone, last_reminder_on, reminders_enabled, push_enabled")
+        .or("reminders_enabled.eq.true,push_enabled.eq.true").not("reminder_hour", "is", null);
       if (error) throw error;
       return data || [];
     },
@@ -34,6 +35,15 @@ function buildDeps(env = process.env) {
       const { data, error } = await sb.auth.admin.getUserById(userId);
       if (error) throw error;
       return data && data.user ? data.user.email : null;
+    },
+    async pushSubscriptions(userId) {
+      const { data, error } = await sb.from("push_subscriptions").select("endpoint, p256dh, auth").eq("user_id", userId);
+      if (error) throw error;
+      return data || [];
+    },
+    async deletePushSubscription(endpoint) {
+      const { error } = await sb.from("push_subscriptions").delete().eq("endpoint", endpoint);
+      if (error) throw error;
     },
     async markReminded(userId, date) {
       const { error } = await sb.from("profiles").update({ last_reminder_on: date }).eq("id", userId);
@@ -56,6 +66,7 @@ function buildDeps(env = process.env) {
     stripe, db,
     analytics: createAnalytics({ key: env.POSTHOG_KEY, host: env.POSTHOG_HOST }),
     sendEmail: createSendEmail({ key: env.RESEND_API_KEY, from: env.RESEND_FROM }),
+    sendPush: createSendPush({ publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT }),
     unsubscribe: createUnsubscribe(env.UNSUBSCRIBE_SECRET),
     contentFor,
     config: { webhookSecret: env.STRIPE_WEBHOOK_SECRET, priceSprint: env.STRIPE_PRICE_SPRINT, appUrl: env.APP_URL, cronSecret: env.CRON_SECRET }

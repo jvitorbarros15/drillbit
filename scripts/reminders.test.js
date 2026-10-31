@@ -90,10 +90,10 @@ test("unsubscribe route: a bad token gives 400 and disables nothing", async () =
 
 test("buildReminder: due tags use the Bring back phrasing, max 3", () => {
   const ids = ctx.patterns.flatMap(p => p.misconceptions.map(m => m.id)).slice(0, 4);
-  const misses = Object.fromEntries(ids.map(id => [id, miss("2026-03-02", "2026-03-04")]));
+  const misses = Object.fromEntries(ids.map(id => [id, miss("2026-03-04", "2026-03-05")]));
   const r = buildReminder(state({ misses }), ctx, "2026-03-05");
   assert.strictEqual(r.lines.filter(l => l.startsWith("Bring back: ")).length, 3);
-  assert.ok(r.lines.every(l => /^Bring back: .+ \(missed Monday\)$/.test(l)));
+  assert.ok(r.lines.every(l => /^Bring back: .+ \(missed Wednesday\)$/.test(l)));
   assert.match(r.subject, /3 to review/);
 });
 
@@ -110,6 +110,31 @@ test("buildReminder: the streak line appears only when the streak is above 0", (
   assert.ok(buildReminder(state({ streak: 1 }), ctx, "2026-03-05").lines.includes("Streak: 1 day"));
 });
 
+const active = (day, over = {}) => state({ lastDone: day, days: { [day]: { answered: 3, correct: 2, done: true } }, ...over });
+
+test("buildReminder: win-back only on days 3, 7, 14 and 30 away, nothing in between", () => {
+  const kinds = [1, 2, 3, 4, 6, 7, 10, 14, 20, 30, 31].map(n => {
+    const r = buildReminder(active(CORE.addDays("2026-03-05", -n)), ctx, "2026-03-05");
+    return r ? r.kind : null;
+  });
+  assert.deepStrictEqual(kinds, ["daily", "daily", "winback", null, null, "winback", null, "winback", null, "winback", null]);
+  const r = buildReminder(active("2026-02-26", { streak: 5 }), ctx, "2026-03-05");
+  assert.match(r.lines[0], /^It's been 7 days\./);
+  assert.strictEqual(r.subject, "Drillbit: pick up where you left off");
+  assert.ok(!r.lines.some(l => l.startsWith("Streak")), "no streak line when the streak is gone");
+});
+
+test("buildReminder: interview countdown at 14, 7, 3 and 1 days, even when away", () => {
+  const at = left => buildReminder(active("2026-02-01", { profile: { interviewDate: CORE.addDays("2026-03-05", left), language: "js", company: { id: "meta", name: "Meta" } } }), ctx, "2026-03-05");
+  assert.deepStrictEqual([14, 7, 3, 1].map(n => at(n).kind), ["countdown", "countdown", "countdown", "countdown"]);
+  assert.strictEqual(at(10), null, "away 32 days and not a countdown day");
+  assert.strictEqual(at(14).subject, "Drillbit: Meta interview in 14 days");
+  assert.match(at(7).lines[0], /^Meta interview in 7 days\. Your plan is in final review mode\.$/);
+  assert.match(at(1).lines[0], /^Meta interview in 1 day\. Keep today light/);
+  const noCompany = buildReminder(active("2026-03-04", { profile: { interviewDate: "2026-03-08", language: "js", company: null } }), ctx, "2026-03-05");
+  assert.strictEqual(noCompany.subject, "Drillbit: interview in 3 days");
+});
+
 test("sample reminder", () => {
   const r = buildReminder(state({ streak: 4, misses: { [TAG.id]: miss("2026-03-02", "2026-03-04") } }), ctx, "2026-03-05");
   const { text } = compose(r, "https://drillbit.test", "https://drillbit.test/api/unsubscribe?u=u1&t=TOKEN");
@@ -118,17 +143,25 @@ test("sample reminder", () => {
 });
 
 const NOW = new Date("2026-03-05T14:30:00Z");
-const row = (id, over = {}) => ({ id, progress: state({ streak: 2 }), reminder_hour: 9, timezone: "America/New_York", last_reminder_on: null, ...over });
-const harness = (rows, { fail = [], paid = [] } = {}) => {
-  const sent = [], marked = [];
+const row = (id, over = {}) => ({ id, progress: state({ streak: 2 }), reminder_hour: 9, timezone: "America/New_York", last_reminder_on: null, reminders_enabled: true, push_enabled: false, ...over });
+const harness = (rows, { fail = [], paid = [], subs = {}, gone = [], pushFail = [] } = {}) => {
+  const sent = [], marked = [], pushed = [], deleted = [];
   const deps = {
     db: {
       reminderCandidates: async () => rows,
       emailOf: async id => id + "@x.test",
       markReminded: async (id, date) => marked.push([id, date]),
-      access: async id => ({ active: paid.includes(id) })
+      access: async id => ({ active: paid.includes(id) }),
+      pushSubscriptions: async id => subs[id] || [],
+      deletePushSubscription: async endpoint => deleted.push(endpoint)
     },
     sendEmail: async m => { if (fail.includes(m.to)) throw new Error("resend down"); sent.push(m); return { mocked: true }; },
+    sendPush: async (sub, payload) => {
+      if (pushFail.includes(sub.endpoint)) throw new Error("push down");
+      if (gone.includes(sub.endpoint)) return { gone: true };
+      pushed.push([sub.endpoint, payload]);
+      return { mocked: false };
+    },
     unsubscribe: U,
     config: { cronSecret: "cron", appUrl: "https://drillbit.test/" },
     contentFor,
@@ -140,7 +173,7 @@ const harness = (rows, { fail = [], paid = [] } = {}) => {
     const res = await call(cron.create(deps), req);
     return { res, body: res.body ? JSON.parse(res.body) : null };
   };
-  return { run, sent, marked };
+  return { run, sent, marked, pushed, deleted };
 };
 
 test("cron: 401 without the secret or with a wrong one", async () => {
@@ -218,4 +251,47 @@ test("cron: free users are not pointed at locked patterns, paid users are", asyn
   const m = harness([row("free", { progress: mixed })]);
   await m.run();
   assert.ok(m.sent[0].text.includes(`Bring back: ${freeTag.label}`) && !m.sent[0].text.includes(lockedTag.label));
+});
+
+test("cron: push goes to every subscription, dead ones are deleted, and push alone counts as delivered", async () => {
+  const sub = e => ({ endpoint: e, p256dh: "k", auth: "a" });
+  const h = harness([
+    row("both", { push_enabled: true }),
+    row("pushonly", { reminders_enabled: false, push_enabled: true }),
+    row("dead", { reminders_enabled: false, push_enabled: true })
+  ], { subs: { both: [sub("p1"), sub("p2")], pushonly: [sub("p3")], dead: [sub("p4")] }, gone: ["p4"] });
+  const { body } = await h.run();
+  assert.deepStrictEqual(body, { checked: 3, sent: 2, skipped: 1 });
+  assert.deepStrictEqual(h.sent.map(m => m.to), ["both@x.test"]);
+  assert.deepStrictEqual(h.pushed.map(p => p[0]), ["p1", "p2", "p3"]);
+  assert.deepStrictEqual(h.deleted, ["p4"]);
+  assert.deepStrictEqual(h.marked.map(m => m[0]), ["both", "pushonly"]);
+  const p = h.pushed[0][1];
+  assert.ok(p.title && !p.title.startsWith("Drillbit:") && p.url === "https://drillbit.test");
+});
+
+test("cron: a push failure doesn't block email, and an email failure doesn't block push", async () => {
+  const sub = e => ({ endpoint: e, p256dh: "k", auth: "a" });
+  const h = harness([row("a", { push_enabled: true }), row("b", { push_enabled: true })], { subs: { a: [sub("pa")], b: [sub("pb")] }, pushFail: ["pa"], fail: ["b@x.test"] });
+  const { body } = await h.run();
+  assert.deepStrictEqual(body, { checked: 2, sent: 2, skipped: 0 });
+  assert.deepStrictEqual([h.sent.map(m => m.to), h.pushed.map(p => p[0])], [["a@x.test"], ["pb"]]);
+});
+
+test("cron: no message on an in-between inactive day, and the day isn't marked", async () => {
+  const h = harness([row("away", { progress: active("2026-02-28") })]);
+  const { body } = await h.run();
+  assert.deepStrictEqual([body.sent, h.marked.length], [0, 0]);
+});
+
+test("push sender mocks without keys and reports gone subscriptions", async () => {
+  const { createSendPush } = require("../api/_lib/push.js");
+  assert.deepStrictEqual(await createSendPush({})({ endpoint: "e" }, { title: "t" }), { mocked: true });
+  const calls = [];
+  const fake = code => ({ setVapidDetails: (...a) => calls.push(["vapid", ...a]), sendNotification: async (sub, body) => { calls.push(["send", sub.endpoint, JSON.parse(body).title]); if (code) throw Object.assign(new Error("x"), { statusCode: code }); } });
+  const ok = createSendPush({ publicKey: "pub", privateKey: "priv", subject: "mailto:a@x.test", webpush: fake(0) });
+  assert.deepStrictEqual(await ok({ endpoint: "e1", p256dh: "k", auth: "a" }, { title: "hi" }), { mocked: false });
+  assert.deepStrictEqual(calls, [["vapid", "mailto:a@x.test", "pub", "priv"], ["send", "e1", "hi"]]);
+  assert.deepStrictEqual(await createSendPush({ publicKey: "p", privateKey: "q", webpush: fake(410) })({ endpoint: "e" }, { title: "t" }), { gone: true });
+  await assert.rejects(createSendPush({ publicKey: "p", privateKey: "q", webpush: fake(500) })({ endpoint: "e" }, { title: "t" }));
 });
