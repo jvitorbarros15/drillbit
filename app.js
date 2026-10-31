@@ -608,7 +608,7 @@
       </section>
       <section class="panel">
         <div class="panel-head"><h3>Refunds</h3></div>
-        <p class="muted">Full refund within 7 days of purchase if you have completed fewer than ${FREE_SESSIONS} sessions.</p>
+        <p class="muted">Full refund for any reason within 7 days of purchase. Email support from the address on the refund page.</p>
         <p class="muted small"><a class="link" href="/terms">Terms</a> <a class="link" href="/privacy">Privacy</a> <a class="link" href="/refund">Refunds</a></p>
       </section>
       <div class="hero-cta">${active ? buy : button}</div>`;

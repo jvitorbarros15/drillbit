@@ -4,10 +4,11 @@ Short daily sessions for algorithm patterns, plus system design practice. Take a
 
 ## What's inside
 
-- **Diagnostic**: 8 questions across core patterns, no signup. It produces a readiness map and sets where your plan starts.
-- **Readiness map**: 13 algorithm patterns, each marked New, Learning, Shaky or Ready, with a count of open misconceptions. Click a pattern to open its guide. Patterns without questions yet say "Coming soon".
+- **Diagnostic**: 8 questions across core patterns, no signup. Results show for every pattern it tested, with the mistake behind each miss. One question per pattern is a first signal, and the app says so.
+- **Free repair**: a free user gets one repair sequence for the weakest paid pattern the diagnostic tested: the fix for their mistake, a recognition question and a different coding problem. The build ships one recognition item and one coding problem per diagnosed paid pattern for this.
+- **Readiness map**: 13 algorithm patterns, each marked New, Learning, Shaky, Ready or Review due, with open misconceptions and the date of the latest evidence. Ready needs two different problems solved, then a coding problem solved alone (no hints, passing on the first test run) on a later day than the first win. The last unseen coding problem in each pattern is held back for that check. Once every problem has been seen, a retry of one never solved unaided counts, and is labeled a retry. Ready turns into Review due after 30 days. Click a pattern to open its guide.
 - **Daily session**: three steps picked from your schedule: a review of something you missed, a recognition question, a concept guide or an exercise, and an independent check with no hints once you have solved something in the pattern. The session is fixed for the day, so a reload resumes where you left off. Finishing it extends your streak.
-- **Misconception tracking**: a wrong answer is tagged with the mistake behind it, from the answer you picked, the failing test, or your own choice. Tagged misses come back after 1, 3 and 7 days until you get them right.
+- **Misconception tracking**: a wrong answer is tagged with the mistake behind it, from the answer you picked, the failing test, or your own choice. Tagged misses come back after 1, 3 and 7 days until you get them right. A coding answer that passes after failing runs counts as practice, not an unaided solve; if a failing run showed a known mistake, it goes in the notebook and comes back in 3 days. Syntax and runtime errors don't count as conceptual misses.
 - **Interview date**: optional. The plan shows a countdown, your current focus pattern, and a final review week.
 - **Learn**: 18 study guides that cover every topic in the question bank. Each has the core idea, a code template, common traps, and a button to drill only that topic.
 - **Interactive visualizers** inside the guides: a Big O growth lab, step-through binary search, sliding window, monotonic stack, min heap, BFS on a grid you can draw walls on, a coin change DP table, a back of the envelope estimator, an LRU cache simulator, and a consistent hashing ring with virtual nodes.
@@ -20,10 +21,10 @@ Progress is saved in your browser's localStorage. Use Export / Import at the bot
 
 ## Accounts (optional)
 
-The app works without an account, with progress in your browser. To add sign-in and sync across devices:
+The app works without an account, with progress in your browser. Sync replays each attempt by id, so work on two devices on the same day is kept. Progress claimed by one account is never merged into a different account that signs in on the same browser; it is set aside on the device until that account signs in again. The account page shows the last sync time and a Sync now button. To add sign-in and sync across devices:
 
 1. Create a Supabase project.
-2. Run `supabase/migrations/20261023000000_init.sql` in the SQL editor (or with the Supabase CLI).
+2. Run every file in `supabase/migrations/` in name order in the SQL editor (or with the Supabase CLI).
 3. In Authentication, Providers, enable Email and Google.
 4. Copy `config.example.js` to `config.js` and fill in the project URL and the anon key. `config.js` is gitignored. The anon key is meant to be public, row level security protects the data.
 5. In Authentication, URL Configuration, add the site URL you serve the app from (for example `http://localhost:8000` locally and your deployed URL) to the redirect URLs, since sign-in links and Google return there.
@@ -36,7 +37,7 @@ A 30 day Sprint Pass is sold through Stripe Checkout (`mode: "payment"`). Access
 
 Server routes live in `api/`: `checkout.js` (needs a Supabase access token), `stripe-webhook.js` and `access.js`.
 
-1. Run both migrations in `supabase/migrations/`.
+1. Run every migration in `supabase/migrations/`.
 2. In Stripe (test mode), create a one-time Price for the pass.
 3. Use a restricted key (`rk_test_...`) instead of the full secret key, with only Checkout Sessions: write and Prices: read. Store it, and every other value below, in Vercel environment variables. Never commit them. `.env.example` lists the names.
 4. Create a webhook endpoint at `<APP_URL>/api/stripe-webhook` listening for exactly these events:
@@ -51,7 +52,7 @@ Server routes live in `api/`: `checkout.js` (needs a Supabase access token), `st
 
 `npm run build` writes `public/` (gitignored), which is what Vercel serves. The public bundle (`content-free.js`) holds only the free lessons (the diagnostic questions plus every Hashing and Two pointers question) and the full Hashing and Two pointers guides. Every other guide is a stub with no body. Paid lessons and guides are returned by `api/content.js` only to a signed-in user with an active pass. The root `index.html` is the dev mode with all content and no gating.
 
-The Sprint Pass is $29, one-time, for 30 days of full access. Free: the diagnostic, the first 3 completed sessions, and unlimited Hashing and Two pointers. Refunds are handled in the Stripe dashboard: a full refund within 7 days if fewer than 3 sessions were completed. The webhook revokes access on a full refund.
+The Sprint Pass is $29, one-time, for 30 days of full access. Free: the diagnostic, the first 3 completed sessions, and unlimited Hashing and Two pointers. Refunds are handled in the Stripe dashboard: a full refund for any reason within 7 days of purchase. The webhook revokes access on a full refund.
 
 For the build, set `SUPABASE_URL` and `SUPABASE_ANON_KEY` so it writes `public/config.js`.
 
@@ -92,7 +93,7 @@ Option B, GitHub: push this folder to a repo, then on vercel.com click Add New >
 - `analytics.js`: optional PostHog events, off without a key or when Do Not Track is on
 - `api/cron-reminders.js`, `api/unsubscribe.js`: daily reminder emails and one-click unsubscribe
 - `terms.html`, `privacy.html`, `refund.html`: legal pages
-- `supabase/`: the migration and the test bootstrap for it
+- `supabase/`: the migrations and the test bootstrap for them
 - `app.js`: the UI
 - `styles.css`, `learn.css`: styles
 
