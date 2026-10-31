@@ -27,7 +27,13 @@ const ctx = {
 const L = id => ctx.lessons.find(l => l.id === id);
 const st = () => C.blankState();
 const rec = (s, o, day = T) => C.recordAttempt(s, ctx, day, o);
-const ready = s => { s.patterns.pb = { mastered: T }; s.patterns.pc = { mastered: T }; return s; };
+// a pattern with two solved lessons and a fresh independent check today
+const prove = (s, pid, ids, at = T) => {
+  ids.forEach(id => (s.items[id] = { seen: 1, correct: 1, wrong: 0, last: "2026-03-01", hinted: false, clean: 1 }));
+  s.patterns[pid] = { started: "2026-03-01", lastMiss: null, firstWin: "2026-03-01", lastWin: at, check: { at, lessonId: ids[ids.length - 1], kind: "fresh" } };
+  return s;
+};
+const ready = s => prove(prove(s, "pb", ["qb1", "cb1"]), "pc", ["qc1", "qc2"]);
 
 test("dates and rng", () => {
   assert.strictEqual(C.addDays("2026-02-27", 3), "2026-03-02");
@@ -61,7 +67,7 @@ test("a miss puts the tag due tomorrow", () => {
   assert.deepStrictEqual(s.misses["pa.m1"], { box: 0, due: "2026-03-11", lastMiss: T, items: ["qa1"], count: 1, resolved: false });
   assert.strictEqual(s.patterns.pa.lastMiss, T);
   assert.strictEqual(s.patterns.pa.started, T);
-  assert.deepStrictEqual(s.items.qa1, { seen: 1, correct: 0, wrong: 1, last: T, hinted: false });
+  assert.deepStrictEqual(s.items.qa1, { seen: 1, correct: 0, wrong: 1, last: T, hinted: false, clean: 0 });
   assert.deepStrictEqual(s.days[T], { answered: 1, correct: 0 });
   rec(s, { lessonId: "qa1", correct: false, tag: "pa.m1" });
   rec(s, { lessonId: "qa2", correct: false, tag: "pa.m1" });
@@ -152,26 +158,79 @@ test("pickReview skips a due tag no lesson carries", () => {
   assert.strictEqual(C.pickReview(s, ctx, T).tag, "pa.m2");
 });
 
-test("mastery rules", () => {
+test("independent check rules", () => {
   const ok = { lessonId: "ca1", correct: true, hinted: false };
-  assert.strictEqual(rec(st(), ok).patterns.pa.mastered, T);
-  assert.strictEqual(rec(st(), { ...ok, hinted: true }).patterns.pa.mastered, null);
-  assert.strictEqual(rec(st(), { ...ok, diagnostic: true }).patterns.pa.mastered, null);
-  assert.strictEqual(rec(st(), { lessonId: "qa1", correct: true }).patterns.pa.mastered, null);
-  assert.strictEqual(rec(st(), { ...ok, correct: false }).patterns.pa.mastered, null);
-  const seenBefore = rec(st(), { lessonId: "ca1", correct: false }, "2026-03-01");
-  assert.strictEqual(rec(seenBefore, ok).patterns.pa.mastered, null);
-  const recent = rec(st(), { lessonId: "qa1", correct: false }, "2026-03-09");
-  assert.strictEqual(rec(recent, ok).patterns.pa.mastered, null);
-  const old = rec(st(), { lessonId: "qa1", correct: false }, "2026-03-08");
-  assert.strictEqual(rec(old, ok).patterns.pa.mastered, T);
+  const won = (day = "2026-03-01") => rec(st(), { lessonId: "qa1", correct: true }, day);
+  assert.strictEqual(rec(st(), ok).patterns.pa.check, null, "one answer with no earlier win proves nothing");
+  assert.deepStrictEqual(rec(won(), ok).patterns.pa.check, { at: T, lessonId: "ca1", kind: "fresh" });
+  assert.strictEqual(rec(won(T), ok).patterns.pa.check, null, "the earlier win must be on an earlier day");
+  assert.strictEqual(rec(won(), { ...ok, hinted: true }).patterns.pa.check, null);
+  assert.strictEqual(rec(won(), { ...ok, diagnostic: true }).patterns.pa.check, null);
+  assert.strictEqual(rec(won(), { ...ok, failedRuns: 1 }).patterns.pa.check, null);
+  assert.strictEqual(rec(won(), { ...ok, revealed: true }).patterns.pa.check, null);
+  assert.deepStrictEqual(rec(won(), { ...ok, errorRuns: 2 }).patterns.pa.check.kind, "fresh", "syntax errors are not a conceptual miss");
+  assert.strictEqual(rec(won(), { lessonId: "qa2", correct: true }).patterns.pa.check, null, "recognition items never count");
+  const seenBefore = rec(won(), { lessonId: "ca1", correct: false }, "2026-03-01");
+  assert.strictEqual(rec(seenBefore, ok).patterns.pa.check, null, "a familiar problem is not a check while fresh ones remain");
+  const recent = rec(won(), { lessonId: "qa2", correct: false }, "2026-03-09");
+  assert.strictEqual(rec(recent, ok).patterns.pa.check, null);
+  const old = rec(won(), { lessonId: "qa2", correct: false }, "2026-03-08");
+  assert.strictEqual(rec(old, ok).patterns.pa.check.kind, "fresh");
 });
 
-test("a later miss clears mastery", () => {
-  const s = rec(st(), { lessonId: "ca1", correct: true });
-  assert.strictEqual(s.patterns.pa.mastered, T);
+test("a retry check once every code lesson has been seen", () => {
+  const s = st();
+  for (const id of ["ca1", "ca2", "ca3"]) rec(s, { lessonId: id, correct: false }, "2026-03-01");
+  rec(s, { lessonId: "qa1", correct: true }, "2026-03-02");
+  rec(s, { lessonId: "ca1", correct: true });
+  assert.deepStrictEqual(s.patterns.pa.check, { at: T, lessonId: "ca1", kind: "retry" });
+  const soon = st();
+  for (const id of ["ca1", "ca2", "ca3"]) rec(soon, { lessonId: id, correct: false }, "2026-03-01");
+  rec(soon, { lessonId: "qa1", correct: true }, "2026-03-02");
+  rec(soon, { lessonId: "ca2", correct: true }, "2026-03-02");
+  assert.strictEqual(soon.patterns.pa.check, null, "the earlier win has to be on an earlier day");
+  rec(soon, { lessonId: "ca2", correct: true }, "2026-03-06");
+  assert.strictEqual(soon.patterns.pa.check, null, "a lesson already solved unaided doesn't count as a retry");
+  rec(soon, { lessonId: "ca3", correct: false }, "2026-03-07");
+  rec(soon, { lessonId: "ca3", correct: true }, "2026-03-08");
+  assert.strictEqual(soon.patterns.pa.check, null, "a retry needs a gap since the last miss");
+});
+
+test("a later miss clears the check", () => {
+  const s = rec(rec(st(), { lessonId: "qa1", correct: true }, "2026-03-01"), { lessonId: "ca1", correct: true });
+  assert.ok(s.patterns.pa.check);
   rec(s, { lessonId: "qa1", correct: false, tag: "pa.m1" }, "2026-03-12");
-  assert.strictEqual(s.patterns.pa.mastered, null);
+  assert.strictEqual(s.patterns.pa.check, null);
+});
+
+test("a pass after a failing run logs the mistake without counting as unaided", () => {
+  const s = rec(st(), { lessonId: "qa1", correct: true }, "2026-03-01");
+  rec(s, { lessonId: "ca1", correct: true, tag: "pa.m3", failedRuns: 1 });
+  assert.deepStrictEqual(s.misses["pa.m3"], { box: 1, due: "2026-03-13", lastMiss: T, items: ["ca1"], count: 1, resolved: false });
+  assert.deepStrictEqual([s.items.ca1.correct, s.items.ca1.clean], [1, 0]);
+  assert.strictEqual(s.patterns.pa.check, null);
+  assert.strictEqual(s.patterns.pa.lastMiss, null, "fixing it yourself doesn't block a check later");
+  rec(s, { lessonId: "qa1", correct: false, tag: "pa.m3" }, "2026-03-11");
+  rec(s, { lessonId: "ca2", correct: true, tag: "pa.m3", failedRuns: 2 }, "2026-03-11");
+  assert.strictEqual(s.misses["pa.m3"].due, "2026-03-12", "an earlier due date is kept");
+});
+
+test("a review passed only after failing runs doesn't advance", () => {
+  const s = rec(st(), { lessonId: "qa1", correct: false, tag: "pa.m1" });
+  rec(s, { lessonId: "ca1", correct: true, failedRuns: 1, reviewOf: "pa.m1" }, "2026-03-11");
+  assert.deepStrictEqual([s.misses["pa.m1"].box, s.misses["pa.m1"].due], [0, "2026-03-11"]);
+  rec(s, { lessonId: "ca2", correct: true, reviewOf: "pa.m1" }, "2026-03-11");
+  assert.strictEqual(s.misses["pa.m1"].box, 1);
+});
+
+test("attempts are logged as events and replays are ignored", () => {
+  const s = rec(st(), { lessonId: "ca1", correct: false, tag: "pa.m1", id: "e1", ts: "2026-03-10T10:00:00Z", failedRuns: 2 });
+  assert.deepStrictEqual(s.events, [{
+    id: "e1", ts: "2026-03-10T10:00:00Z", at: T, lessonId: "ca1", pattern: "pa", type: "code", correct: false, tag: "pa.m1",
+    hinted: false, failedRuns: 2, errorRuns: 0, revealed: false, reviewOf: null, diagnostic: false
+  }]);
+  rec(s, { lessonId: "ca1", correct: false, tag: "pa.m1", id: "e1" });
+  assert.strictEqual(s.items.ca1.seen, 1);
 });
 
 test("readiness statuses", () => {
@@ -184,15 +243,20 @@ test("readiness statuses", () => {
   r = C.readiness(s, ctx, T);
   assert.deepStrictEqual([r[0].status, r[0].attempted, r[0].correct], ["learning", 1, 1]);
   rec(s, { lessonId: "cb1", correct: true });
-  assert.strictEqual(C.readiness(s, ctx, T)[1].status, "ready");
+  assert.strictEqual(C.readiness(s, ctx, T)[1].status, "learning", "a single answer can't certify a pattern");
+  const p = rec(rec(st(), { lessonId: "qb1", correct: true }, "2026-03-01"), { lessonId: "cb1", correct: true });
+  r = C.readiness(p, ctx, T)[1];
+  assert.deepStrictEqual([r.status, r.check.kind, r.lastWin], ["ready", "fresh", T]);
+  assert.strictEqual(C.readiness(p, ctx, "2026-04-09")[1].status, "ready");
+  assert.strictEqual(C.readiness(p, ctx, "2026-04-10")[1].status, "due", "old evidence shows as review due");
   rec(s, { lessonId: "qc1", correct: false, tag: "pc.m1" });
   r = C.readiness(s, ctx, T);
   assert.deepStrictEqual([r[2].status, r[2].openMisses], ["shaky", 1]);
-  s.misses["pb.m1"] = { box: 0, due: "2026-03-11", items: [], resolved: false };
-  r = C.readiness(s, ctx, T);
+  p.misses["pb.m1"] = { box: 0, due: "2026-03-11", items: [], resolved: false };
+  r = C.readiness(p, ctx, T);
   assert.deepStrictEqual([r[1].status, r[1].openMisses], ["shaky", 1]);
-  s.misses["pb.m1"].resolved = true;
-  assert.strictEqual(C.readiness(s, ctx, T)[1].status, "ready");
+  p.misses["pb.m1"].resolved = true;
+  assert.strictEqual(C.readiness(p, ctx, T)[1].status, "ready");
 });
 
 test("schedule phases", () => {
@@ -214,12 +278,14 @@ test("schedule current is weak first, then pattern order", () => {
   assert.strictEqual(cur().current, "pb");
   s.diagnostic.results.pc = { correct: 0, total: 1 };
   assert.strictEqual(cur().current, "pb");
-  s.patterns.pb = { mastered: T };
+  prove(s, "pb", ["qb1", "cb1"]);
   assert.strictEqual(cur().current, "pc");
-  s.patterns.pc = { mastered: T };
+  prove(s, "pc", ["qc1", "qc2"]);
   assert.deepStrictEqual([cur().current, cur().remaining], ["pa", 1]);
-  s.patterns.pa = { mastered: T };
+  prove(s, "pa", ["qa1", "ca1"]);
   assert.deepStrictEqual([cur().current, cur().remaining], [null, 0]);
+  prove(s, "pa", ["qa1", "ca1"], "2026-01-01");
+  assert.deepStrictEqual([cur().current, cur().remaining], ["pa", 1], "a pattern due for review is back in the plan");
 });
 
 test("composeSession in the learn phase falls back to recognition", () => {
@@ -246,46 +312,37 @@ test("composeSession starts with a due review", () => {
 });
 
 test("composeSession concept has a null guide when the pattern has none", () => {
-  const s = st();
-  s.patterns.pa = { mastered: T };
+  const s = prove(st(), "pa", ["qa1", "ca1"]);
   assert.deepStrictEqual(C.composeSession(s, ctx, T)[1], { kind: "concept", patternId: "pb", guideId: null });
 });
 
-test("exercise picks unseen, then unsolved, then any", () => {
+test("practice skips the held back lesson and the check uses it", () => {
   const s = ready(st());
+  const ex = day => { const e = C.composeSession(s, ctx, day)[2]; return [e.lessonId, e.independent]; };
+  assert.deepStrictEqual(ex(T), ["ca1", false], "no win yet: guided practice, ca3 stays unseen");
   rec(s, { lessonId: "ca1", correct: true }, "2026-03-01");
-  assert.strictEqual(C.composeSession(s, ctx, T)[2].lessonId, "ca2");
+  assert.deepStrictEqual(ex(T), ["ca3", true]);
   rec(s, { lessonId: "ca2", correct: false });
-  rec(s, { lessonId: "ca3", correct: true });
-  assert.strictEqual(C.composeSession(s, ctx, "2026-03-20")[2].lessonId, "ca2");
-  rec(s, { lessonId: "ca2", correct: true }, "2026-03-21");
-  assert.strictEqual(C.composeSession(s, ctx, "2026-03-22")[2].lessonId, "ca1");
+  assert.deepStrictEqual(ex(T), ["ca2", false], "a miss today blocks the check, practice the unsolved one");
+  assert.deepStrictEqual(ex("2026-03-12"), ["ca3", true]);
+  rec(s, { lessonId: "ca3", correct: true }, "2026-03-12");
+  assert.deepStrictEqual([C.readiness(s, ctx, "2026-03-12")[0].status, s.patterns.pa.check.kind], ["ready", "fresh"]);
 });
 
-test("independent flag", () => {
+test("the check falls back to a retry once every code lesson is seen", () => {
   const s = ready(st());
-  rec(s, { lessonId: "qa1", correct: true });
-  let e = C.composeSession(s, ctx, T)[2];
+  for (const id of ["ca1", "ca2", "ca3"]) rec(s, { lessonId: id, correct: false }, "2026-03-01");
+  rec(s, { lessonId: "qa1", correct: true }, "2026-03-02");
+  const e = C.composeSession(s, ctx, T)[2];
   assert.deepStrictEqual([e.lessonId, e.independent], ["ca1", true]);
-  s.patterns.pa.lastMiss = "2026-03-08";
-  assert.strictEqual(C.composeSession(s, ctx, T)[2].independent, true);
   s.patterns.pa.lastMiss = "2026-03-09";
   assert.strictEqual(C.composeSession(s, ctx, T)[2].independent, false);
-  const nothing = ready(st());
-  assert.strictEqual(C.composeSession(nothing, ctx, T)[2].independent, false);
-  const seenOnly = ready(st());
-  rec(seenOnly, { lessonId: "qa1", correct: true });
-  rec(seenOnly, { lessonId: "ca1", correct: false }, "2026-03-01");
-  rec(seenOnly, { lessonId: "ca2", correct: false }, "2026-03-01");
-  rec(seenOnly, { lessonId: "ca3", correct: false }, "2026-03-01");
-  const x = C.composeSession(seenOnly, ctx, T)[2];
-  assert.deepStrictEqual([x.kind, x.independent], ["exercise", false]);
 });
 
 test("a pattern with no code lesson uses an unseen recognition item", () => {
   const s = st();
-  s.patterns.pa = { mastered: T };
-  s.patterns.pb = { mastered: T };
+  prove(s, "pa", ["qa1", "ca1"]);
+  prove(s, "pb", ["qb1", "cb1"]);
   const a = C.composeSession(s, ctx, T);
   assert.strictEqual(a.length, 3);
   assert.deepStrictEqual(a[1], { kind: "concept", patternId: "pc", guideId: null });
@@ -319,7 +376,7 @@ test("diagnostic never grants mastery and records results", () => {
     { lessonId: "qb1", correct: false, tag: "pb.m1" }
   ]);
   assert.deepStrictEqual(s.diagnostic, { at: T, results: { pa: { correct: 1, total: 1 }, pb: { correct: 0, total: 1 } } });
-  assert.strictEqual(s.patterns.pa.mastered, null);
+  assert.strictEqual(s.patterns.pa.check, null);
   assert.strictEqual(s.items.ca1.seen, 1);
   assert.strictEqual(s.misses["pb.m1"].due, "2026-03-11");
   assert.strictEqual(C.schedule(s, ctx, T).current, "pb");
@@ -348,15 +405,22 @@ test("migrate from v1", () => {
     daily: { date: "2026-03-09" }, drafts: { ca1: "code" }, read: { big: 1 }
   };
   assert.deepStrictEqual(C.migrate(v1), {
-    v: 2, profile: { interviewDate: null, language: "js" }, diagnostic: null,
-    items: { qa1: { seen: 3, correct: 2, wrong: 1, last: "2026-03-09", hinted: false } },
+    v: 3, profile: { interviewDate: null, language: "js" }, diagnostic: null,
+    items: { qa1: { seen: 3, correct: 2, wrong: 1, last: "2026-03-09", hinted: false, clean: 0 } },
     misses: {}, patterns: {}, streak: 4, best: 9, freezes: 1, lastDone: "2026-03-09",
     days: { "2026-03-09": { answered: 5, correct: 4 }, "2026-03-08": { answered: 1, correct: 1, frozen: true } },
-    drafts: { ca1: "code" }, read: { big: 1 }
+    drafts: { ca1: { code: "code", ts: "" } }, read: { big: 1 }, events: [], legacy: true, owner: null
   });
 });
 
-test("migrate keeps v2 and rejects garbage", () => {
+test("migrate from v2 drops one-answer mastery and marks the state legacy", () => {
+  const v2 = { v: 2, items: {}, patterns: { pa: { started: "2026-03-01", lastMiss: "2026-03-02", mastered: "2026-03-05" } }, drafts: { ca1: "x" } };
+  const s = C.migrate(v2);
+  assert.deepStrictEqual(s.patterns.pa, { started: "2026-03-01", lastMiss: "2026-03-02", firstWin: null, lastWin: null, check: null });
+  assert.deepStrictEqual([s.v, s.legacy, s.drafts.ca1, s.events], [3, true, { code: "x", ts: "" }, []]);
+});
+
+test("migrate keeps v3 and rejects garbage", () => {
   const s = rec(st(), { lessonId: "qa1", correct: false, tag: "pa.m1" });
   assert.deepStrictEqual(C.migrate(JSON.parse(JSON.stringify(s))), s);
   assert.deepStrictEqual(C.migrate({ v: 2, streak: 3 }).profile, { interviewDate: null, language: "js" });
@@ -397,7 +461,62 @@ test("mergeProgress items and misses: later date wins, remote on tie or missing"
   assert.deepStrictEqual(["a", "b", "c"].map(k => out.items[k].correct), [1, 9, 9]);
   assert.ok(out.items.onlyL && out.items.onlyR);
   assert.deepStrictEqual(["x", "y", "z"].map(k => out.misses[k].count), [1, 9, 9]);
-  assert.strictEqual(out.v, 2);
+  assert.strictEqual(out.v, 3);
+});
+
+// two devices: local did four attempts, remote one, all on the same day
+const device = (ids, day = T) => {
+  const s = st();
+  ids.forEach((id, i) => rec(s, { lessonId: id, correct: i % 2 === 0, id: `${id}-${i}-${day}`, ts: `${day}T1${i}:00:00Z` }, day));
+  return s;
+};
+
+test("mergeProgress replays attempts from both devices", () => {
+  const l = device(["qa1", "qa2", "ca1", "qb1"]);
+  const r = device(["qc1"]);
+  r.events[0].ts = "2026-03-10T09:00:00Z";
+  const out = C.mergeProgress(l, r, ctx);
+  assert.strictEqual(out.events.length, 5);
+  assert.deepStrictEqual(Object.values(out.items).reduce((a, it) => a + it.seen, 0), 5);
+  assert.deepStrictEqual(out.days[T], { answered: 5, correct: 3 });
+  assert.deepStrictEqual(out.events.map(e => e.lessonId), ["qc1", "qa1", "qa2", "ca1", "qb1"]);
+  const again = C.mergeProgress(l, out, ctx);
+  assert.strictEqual(again.events.length, 5, "attempts already synced are not counted twice");
+  assert.deepStrictEqual(again.days[T], { answered: 5, correct: 3 });
+  assert.deepStrictEqual(again.items, out.items);
+});
+
+test("mergeProgress replays misses into the review queue", () => {
+  const l = st();
+  rec(l, { lessonId: "qa1", correct: false, tag: "pa.m1", id: "m1", ts: "2026-03-10T10:00:00Z" });
+  const out = C.mergeProgress(l, st(), ctx);
+  assert.strictEqual(out.misses["pa.m1"].due, "2026-03-11");
+  assert.strictEqual(out.patterns.pa.lastMiss, T);
+});
+
+test("mergeProgress replays attempts on lessons this device doesn't have", () => {
+  const l = st();
+  rec(l, { lessonId: "ca1", correct: false, tag: "pa.m1", id: "p1", ts: "2026-03-10T10:00:00Z" });
+  const free = { ...ctx, lessons: ctx.lessons.filter(x => x.id !== "ca1") };
+  const out = C.mergeProgress(l, st(), free);
+  assert.deepStrictEqual([out.items.ca1.wrong, out.misses["pa.m1"].items], [1, ["ca1"]]);
+});
+
+test("mergeProgress falls back to a field merge for legacy states", () => {
+  const l = C.migrate({ v: 2, items: { a: { seen: 4, correct: 4, wrong: 0, last: "2026-03-10" } } });
+  const r = device(["qa1"]);
+  const out = C.mergeProgress(l, r, ctx);
+  assert.deepStrictEqual([out.items.a.seen, out.items.qa1.seen, out.legacy, out.events.length], [4, 1, false, 1]);
+});
+
+test("mergeProgress keeps the newer draft and the same-day session with more progress", () => {
+  const l = sv({ drafts: { a: { code: "L", ts: "2026-03-10T10:00:00Z" }, b: { code: "L", ts: "2026-03-10T08:00:00Z" } },
+    days: { [T]: { answered: 0, correct: 0, session: { entries: [1, 2, 3], done: [{}, {}] } } } });
+  const r = sv({ drafts: { a: { code: "R", ts: "2026-03-10T09:00:00Z" }, b: { code: "R", ts: "2026-03-10T09:00:00Z" } },
+    days: { [T]: { answered: 0, correct: 0, done: true, session: { entries: [1, 2, 3], done: [{}] } } } });
+  const out = C.mergeProgress(l, r, ctx);
+  assert.deepStrictEqual([out.drafts.a.code, out.drafts.b.code], ["L", "R"]);
+  assert.deepStrictEqual([out.days[T].session.done.length, out.days[T].done], [2, true]);
 });
 
 test("mergeProgress patterns use the later of lastMiss and started, mastered follows the chosen entry", () => {
@@ -435,7 +554,7 @@ test("mergeProgress profile, diagnostic, drafts, read", () => {
   let out = C.mergeProgress(l, r);
   assert.strictEqual(out.profile.interviewDate, "2026-06-01");
   assert.strictEqual(out.diagnostic.at, "R");
-  assert.deepStrictEqual(out.drafts, { a: "R", b: "L" });
+  assert.deepStrictEqual(out.drafts, { a: { code: "R", ts: "" }, b: { code: "L", ts: "" } });
   assert.deepStrictEqual(out.read, { g1: "2026-03-01", g2: "2026-03-09", g3: "2026-03-03" });
   out = C.mergeProgress(l, sv({}));
   assert.strictEqual(out.profile.interviewDate, "2026-05-01");
