@@ -1,5 +1,4 @@
-// Pure learning logic. No Date.now, no localStorage. State functions mutate the state they are given and return it.
-// ctx = { lessons, patterns, guides }, today = "YYYY-MM-DD".
+// pure: no Date.now or storage; state functions mutate and return the state they're given
 (function () {
   // ---------- dates (local time) ----------
   const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -536,7 +535,7 @@
   }
 
   function shareText(sum) {
-    const lines = [`My Drillbit readiness, ${sum.date}: ${sum.ready.length} of ${sum.total} patterns proven.`];
+    const lines = [`My Algostead readiness, ${sum.date}: ${sum.ready.length} of ${sum.total} patterns proven.`];
     if (sum.ready.length) lines.push(`Proven (a problem solved first, then a new one solved alone on a later day): ${sum.ready.map(r => r.name).join(", ")}.`);
     if (sum.due.length) lines.push(`Due for a recheck: ${sum.due.join(", ")}.`);
     if (sum.practicing) lines.push(`Practicing ${sum.practicing} more.`);

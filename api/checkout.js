@@ -14,8 +14,8 @@ const create = ({ stripe, db, config }) => async (req, res) => {
       customer_email: user.email,
       metadata: { user_id: user.id, product: "sprint_30" },
       payment_intent_data: { metadata: { user_id: user.id } },
-      success_url: config.appUrl + "/?checkout=success",
-      cancel_url: config.appUrl + "/?checkout=cancel",
+      success_url: String(config.appUrl || "").replace(/\/+$/, "") + "/?checkout=success",
+      cancel_url: String(config.appUrl || "").replace(/\/+$/, "") + "/?checkout=cancel",
       integration_identifier: "drillbit_sprint_qkzvhmtw"
     });
     return send(res, 200, { url: session.url });

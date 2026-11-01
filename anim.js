@@ -1,5 +1,4 @@
-// Trace-driven walkthrough player. ANIM.player(box, { steps, view, input, result, truncated }) renders an SVG scene plus controls.
-// Views are { setup(svg, input, spec, steps), frame(svg, step, prev, ms) }. ms is the animation length, 0 means jump straight to the state.
+// views are { setup(svg, input, spec, steps), frame(svg, step, prev, ms) }; ms 0 jumps straight to the state
 (() => {
   "use strict";
   const NS = "http://www.w3.org/2000/svg";
