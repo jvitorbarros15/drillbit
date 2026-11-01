@@ -1,5 +1,8 @@
 // Sanity checks for the lesson bank. Run: node scripts/verify.js
 const LESSONS = require("../data.js");
+const { validateLesson, validateGuide } = require("./schema.js");
+const { checkPatterns, unusedTopics, contentBar } = require("./patterns-check.js");
+const PATTERNS = require("../patterns.js");
 
 function eq(a, b) {
   if (a === b) return true;
@@ -16,36 +19,42 @@ let failures = 0;
 const fail = (id, msg) => { failures++; console.log(`FAIL ${id}: ${msg}`); };
 const ids = new Set();
 
+const build = t => ({
+  args: t.argsCode ? new Function("return " + t.argsCode)() : JSON.parse(JSON.stringify(t.args)),
+  expected: t.expectedCode ? new Function("return " + t.expectedCode)() : t.expected,
+});
+
 for (const l of LESSONS) {
   if (ids.has(l.id)) fail(l.id, "duplicate id");
   ids.add(l.id);
-  for (const f of ["id", "track", "level", "topic", "type", "title", "prompt", "explain"])
-    if (l[f] === undefined || l[f] === "") fail(l.id, `missing ${f}`);
-  if (!["algo", "sd"].includes(l.track)) fail(l.id, "bad track");
-  if (!(l.level >= 1 && l.level <= 5)) fail(l.id, "bad level");
+  const errs = validateLesson(l);
+  errs.forEach(m => fail(l.id, m));
+  if (errs.length) continue;
 
   const prose = [l.title, l.prompt, l.explain, l.hint || "", ...(l.options || [])].join(" ");
   if (/—|--/.test(prose)) fail(l.id, "contains a dash pair or em dash");
 
-  if (l.type === "mcq" && !(l.answer >= 0 && l.answer < l.options.length)) fail(l.id, "answer out of range");
-  if (l.type === "multi" && !(l.answers.length && l.answers.every(i => i >= 0 && i < l.options.length))) fail(l.id, "answers out of range");
-  if (l.type === "number" && !(l.min <= l.answer && l.answer <= l.max)) fail(l.id, "answer outside [min, max]");
-
   if (l.type === "code") {
-    let fn;
+    let fn, starter;
     try { fn = new Function(l.solution + `\n;return ${l.fn};`)(); }
     catch (e) { fail(l.id, "solution does not compile: " + e.message); continue; }
-    // Starter must compile too
-    try { new Function(l.starter + `\n;return ${l.fn};`)(); } catch (e) { fail(l.id, "starter does not compile"); }
+    try { starter = new Function(l.starter + `\n;return ${l.fn};`)(); } catch (e) { fail(l.id, "starter does not compile"); }
+    let starterPasses = typeof starter === "function";
     l.tests.forEach((t, i) => {
-      const args = t.argsCode ? new Function("return " + t.argsCode)() : JSON.parse(JSON.stringify(t.args));
-      const expected = t.expectedCode ? new Function("return " + t.expectedCode)() : t.expected;
-      const t0 = Date.now();
-      const out = fn(...args);
-      const ms = Date.now() - t0;
-      if (!eq(out, expected)) fail(l.id, `test ${i + 1}: got ${JSON.stringify(out).slice(0, 80)}, expected ${JSON.stringify(expected).slice(0, 80)}`);
-      if (ms > 1500) fail(l.id, `test ${i + 1} too slow for reference solution (${ms}ms)`);
+      let args, expected;
+      try { ({ args, expected } = build(t)); } catch (e) { fail(l.id, `test ${i + 1} threw: ${e.message}`); return; }
+      try {
+        const t0 = Date.now();
+        const out = fn(...args);
+        const ms = Date.now() - t0;
+        if (!eq(out, expected)) fail(l.id, `test ${i + 1}: got ${JSON.stringify(out).slice(0, 80)}, expected ${JSON.stringify(expected).slice(0, 80)}`);
+        if (ms > 1500) fail(l.id, `test ${i + 1} too slow for reference solution (${ms}ms)`);
+      } catch (e) { fail(l.id, `test ${i + 1} threw: ${e.message}`); }
+      if (starterPasses) {
+        try { if (!eq(starter(...build(t).args), expected)) starterPasses = false; } catch (e) { starterPasses = false; }
+      }
     });
+    if (starterPasses) fail(l.id, "starter passes all tests");
   }
 }
 
@@ -56,7 +65,9 @@ const gids = new Set();
 for (const g of GUIDES) {
   if (gids.has(g.id)) fail(g.id, "duplicate guide id");
   gids.add(g.id);
-  if (!["algo", "sd"].includes(g.track)) fail(g.id, "bad guide track");
+  const errs = validateGuide(g);
+  errs.forEach(m => fail(g.id, m));
+  if (errs.length) continue;
   const guideProse = (g.title + g.summary + g.body).replace(/^~~~[\s\S]*?^~~~/gm, "").replace(/`[^`]*`/g, "");
   if (/—|--/.test(guideProse)) fail(g.id, "guide contains a dash pair or em dash");
   if ((g.body.match(/^~~~/gm) || []).length % 2) fail(g.id, "unclosed ~~~ code fence");
@@ -65,10 +76,20 @@ for (const g of GUIDES) {
 }
 for (const t of new Set(LESSONS.map(l => l.topic))) if (!covered.has(t)) fail(t, "topic has no study guide");
 
+checkPatterns(PATTERNS, LESSONS, GUIDES).forEach(m => fail("patterns", m));
+unusedTopics(PATTERNS, LESSONS).forEach(m => console.log(`note: ${m}`));
+
 const count = (pred) => LESSONS.filter(pred).length;
 console.log(`${GUIDES.length} guides, ${vizNames.size} interactive widgets`);
 console.log(`\n${LESSONS.length} lessons, ${count(l => l.type === "code")} coding challenges`);
 for (const t of ["algo", "sd"])
   console.log(t, [1, 2, 3, 4, 5].map(L => `L${L}:${count(l => l.track === t && l.level === L)}`).join(" "));
+console.log("");
+console.log("pattern content bar (launch bar: 3 code, 5 recognition)");
+console.log("pattern".padEnd(16) + "code".padStart(5) + "recog".padStart(7) + "misc".padStart(6) + "  status");
+for (const r of contentBar(PATTERNS, LESSONS)) {
+  const need = [r.code < 3 ? `${3 - r.code} code` : "", r.recognition < 5 ? `${5 - r.recognition} recognition` : ""].filter(Boolean);
+  console.log(r.id.padEnd(16) + String(r.code).padStart(5) + String(r.recognition).padStart(7) + String(r.misconceptions).padStart(6) + "  " + (need.length ? "needs " + need.join(", ") : "ok"));
+}
 console.log(failures ? `\n${failures} problem(s)` : "\nAll checks passed");
 process.exit(failures ? 1 : 0);
