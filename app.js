@@ -1175,7 +1175,7 @@
   }
 
   function pickPlan(k, i) {
-    if (!cur || cur.planned !== undefined) return;
+    if (!cur || cur.answered || cur.planned !== undefined) return;
     cur.picks[k] = i;
     document.querySelectorAll(`[data-act="plan-pick"][data-k="${k}"]`).forEach(b => b.classList.toggle("sel", Number(b.dataset.i) === i));
     const lock = document.querySelector('[data-act="plan-lock"]');
@@ -1183,7 +1183,7 @@
   }
 
   function lockPlan(skip) {
-    if (!cur || cur.planned !== undefined) return;
+    if (!cur || cur.answered || cur.planned !== undefined) return;
     const item = cur.item;
     cur.planMiss = skip ? [] : PLAN_PARTS.map(([k]) => k).filter(k => cur.picks[k] !== item.plan[k].answer);
     cur.planned = !skip && !cur.planMiss.length;
@@ -1392,7 +1392,8 @@
     if (item.type === "code") {
       const ta = $("#code");
       if (ta) ta.readOnly = true;
-      document.querySelectorAll(".code-actions .btn").forEach(b => (b.disabled = true));
+      // also covers a plan step still open when a mock's clock runs out
+      document.querySelectorAll(".code-actions .btn, #plan .opt").forEach(b => (b.disabled = true));
     }
     const dots = document.querySelectorAll(".dot");
     if (dots[run.idx]) { dots[run.idx].classList.remove("cur"); dots[run.idx].classList.add(correct ? "ok" : "bad"); }
