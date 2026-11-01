@@ -397,3 +397,12 @@ pre.sol code { background: none; border: 0; padding: 0; font-size: inherit; }
 /* mock interview */
 .timer { margin-left: 8px; color: var(--text); font-variant-numeric: tabular-nums; }
 .timer.low { color: var(--bad); }
+
+/* debrief */
+.picks { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.pick { font: inherit; font-size: 0.85rem; color: var(--muted); background: var(--bg2); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; cursor: pointer; }
+.pick:hover { border-color: var(--line2); }
+.pick.on { color: var(--text); border-color: var(--algo); background: rgba(182,255,59,0.08); }
+.db-note { font: inherit; color: var(--text); background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 12px; resize: vertical; }
+.past-iv { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
+.past-iv p { margin: 0 0 4px; }

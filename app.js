@@ -346,7 +346,64 @@
         ${interviewFields()}
         <div class="hero-cta"><button class="btn primary" data-act="save-interview">Save</button></div>
       </section>
-      <div id="iv-card">${companyCard(S.profile.company && S.profile.company.id)}</div>`;
+      <div id="iv-card">${companyCard(S.profile.company && S.profile.company.id)}</div>
+      ${pastInterviews()}`;
+  }
+
+  // ---------- debrief ----------
+  const OUTCOMES = { waiting: "Still waiting to hear", "next-round": "Moving to the next round", no: "Didn't move forward", private: "Rather not say", skip: "Skipped the debrief" };
+  let dbPick = { came: new Set(), hard: new Set() };
+  function debriefCard() {
+    const co = S.profile.company;
+    dbPick = { came: new Set(), hard: new Set() };
+    const chips = row => PATTERNS.map(p => `<button class="pick" data-act="db-chip" data-row="${row}" data-id="${p.id}">${esc(p.name)}</button>`).join("");
+    return `
+      <section class="panel debrief" id="debrief">
+        <p class="eyebrow">Interview debrief</p>
+        <h3>How did ${co ? esc(co.name) : "your interview"} go?</h3>
+        <p class="muted small">Two minutes while it's fresh. What came up moves to the front of your plan, and the hard parts go first.</p>
+        <div class="iv-fields">
+          <label class="iv-field">Outcome<select id="db-outcome" class="date-input">${["waiting", "next-round", "no", "private"].map(k => `<option value="${k}">${OUTCOMES[k]}</option>`).join("")}</select></label>
+          <label class="iv-field">Next round (optional)<input id="db-next" class="date-input" type="date" min="${CORE.addDays(today(), 1)}" /></label>
+        </div>
+        <p class="plan-label">What came up?</p>
+        <div class="picks">${chips("came")}</div>
+        <p class="plan-label">What felt shaky?</p>
+        <div class="picks">${chips("hard")}</div>
+        <label class="iv-field">Notes for next time (optional, saved with your progress)<textarea id="db-note" class="db-note" maxlength="500" rows="3"></textarea></label>
+        <div class="hero-cta">
+          <button class="btn primary" data-act="save-debrief">Save debrief</button>
+          <button class="btn ghost" data-act="skip-debrief">Skip</button>
+        </div>
+      </section>`;
+  }
+
+  function saveDebrief(skip) {
+    const next = !skip && $("#db-next").value || null;
+    const d = skip
+      ? { id: newId(), outcome: "skip" }
+      : { id: newId(), outcome: $("#db-outcome").value, came: [...dbPick.came], hard: [...dbPick.hard], note: $("#db-note").value.trim().slice(0, 500), next };
+    CORE.recordDebrief(S, today(), d);
+    save();
+    ANALYTICS.track("debrief_saved", { outcome: d.outcome, came: (d.came || []).length, hard: (d.hard || []).length, nextRound: !!next });
+    toast(skip ? "Skipped. Set a new date any time." : next ? "Saved. Your plan now points at the next round." : "Saved. Your plan now leans on what came up.");
+    renderHome();
+  }
+
+  function pastInterviews() {
+    const list = (S.profile.debriefs || []).filter(d => d.outcome !== "skip").slice().reverse();
+    if (!list.length) return "";
+    const names = ids => ids.map(id => (PAT_BY_ID[id] ? PAT_BY_ID[id].name : id)).join(", ");
+    return `
+      <section class="panel">
+        <div class="panel-head"><h3>Past interviews</h3></div>
+        ${list.map(d => `<div class="past-iv">
+          <p><strong>${esc(d.company || "Interview")}</strong>${d.date ? `, ${shortDate(d.date)}` : ""} <span class="muted small">${OUTCOMES[d.outcome] || ""}</span></p>
+          ${d.came.length ? `<p class="muted small">Came up: ${esc(names(d.came))}</p>` : ""}
+          ${d.hard.length ? `<p class="muted small">Felt shaky: ${esc(names(d.hard))}</p>` : ""}
+          ${d.note ? `<p class="small">${esc(d.note)}</p>` : ""}
+        </div>`).join("")}
+      </section>`;
   }
   function interviewCard() {
     const co = S.profile.company;
@@ -621,7 +678,7 @@
       </section>` : ""}
 
       ${repairPanel()}
-      ${interviewCard()}
+      ${CORE.debriefDue(S, today()) ? debriefCard() : interviewCard()}
       ${readinessPanel()}
 
       <section class="panel">
@@ -1576,6 +1633,14 @@
       case "learn": go("#learn"); break;
       case "practice-nav": go("#practice"); break;
       case "mock": startMock(); window.scrollTo(0, 0); break;
+      case "db-chip": {
+        const set = dbPick[el.dataset.row];
+        set.has(el.dataset.id) ? set.delete(el.dataset.id) : set.add(el.dataset.id);
+        el.classList.toggle("on", set.has(el.dataset.id));
+        break;
+      }
+      case "save-debrief": saveDebrief(false); break;
+      case "skip-debrief": saveDebrief(true); break;
       case "guide": go("#learn/" + el.dataset.id); break;
       case "jump": { const t = document.getElementById(el.dataset.to); if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); break; }
       case "drill": startDrill(GUIDE_BY_ID[el.dataset.id]); window.scrollTo(0, 0); break;
