@@ -194,7 +194,9 @@
       if (!cfg.vapidPublicKey || !hasPushApi()) return { ok: false, reason: "unsupported" };
       const perm = await window.Notification.requestPermission();
       if (perm !== "granted") return { ok: false, reason: "denied" };
-      const reg = await navigator.serviceWorker.register("/sw.js");
+      const first = await navigator.serviceWorker.register("/sw.js");
+      // subscribe needs an active worker, and a first registration is still installing
+      const reg = (await navigator.serviceWorker.ready) || first;
       const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64(cfg.vapidPublicKey) });
       const j = sub.toJSON();
       check(await client.rpc("claim_push_subscription", { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth }));
