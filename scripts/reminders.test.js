@@ -24,13 +24,13 @@ test("email: without a key it mocks and never calls fetch", async () => {
 
 test("email: posts a well formed Resend request", async () => {
   const seen = [];
-  const send = createSendEmail({ key: "re_k", from: "Drillbit <r@x.test>", fetch: async (url, init) => { seen.push([url, init]); return { ok: true, json: async () => ({ id: "m1" }) }; } });
+  const send = createSendEmail({ key: "re_k", from: "Algostead <r@x.test>", fetch: async (url, init) => { seen.push([url, init]); return { ok: true, json: async () => ({ id: "m1" }) }; } });
   const r = await send({ to: "u@x.test", subject: "s", html: "<p>h</p>", text: "t", headers: { "List-Unsubscribe": "<u>" } });
   assert.deepStrictEqual(r, { mocked: false, id: "m1" });
   assert.strictEqual(seen[0][0], "https://api.resend.com/emails");
   assert.strictEqual(seen[0][1].method, "POST");
   assert.strictEqual(seen[0][1].headers.Authorization, "Bearer re_k");
-  assert.deepStrictEqual(JSON.parse(seen[0][1].body), { from: "Drillbit <r@x.test>", to: ["u@x.test"], subject: "s", html: "<p>h</p>", text: "t", headers: { "List-Unsubscribe": "<u>" } });
+  assert.deepStrictEqual(JSON.parse(seen[0][1].body), { from: "Algostead <r@x.test>", to: ["u@x.test"], subject: "s", html: "<p>h</p>", text: "t", headers: { "List-Unsubscribe": "<u>" } });
 });
 
 test("email: a non-2xx response throws", async () => {
@@ -120,7 +120,7 @@ test("buildReminder: win-back only on days 3, 7, 14 and 30 away, nothing in betw
   assert.deepStrictEqual(kinds, ["daily", "daily", "winback", null, null, "winback", null, "winback", null, "winback", null]);
   const r = buildReminder(active("2026-02-26", { streak: 5 }), ctx, "2026-03-05");
   assert.match(r.lines[0], /^It's been 7 days\./);
-  assert.strictEqual(r.subject, "Drillbit: pick up where you left off");
+  assert.strictEqual(r.subject, "Algostead: pick up where you left off");
   assert.ok(!r.lines.some(l => l.startsWith("Streak")), "no streak line when the streak is gone");
 });
 
@@ -128,11 +128,11 @@ test("buildReminder: interview countdown at 14, 7, 3 and 1 days, even when away"
   const at = left => buildReminder(active("2026-02-01", { profile: { interviewDate: CORE.addDays("2026-03-05", left), language: "js", company: { id: "meta", name: "Meta" } } }), ctx, "2026-03-05");
   assert.deepStrictEqual([14, 7, 3, 1].map(n => at(n).kind), ["countdown", "countdown", "countdown", "countdown"]);
   assert.strictEqual(at(10), null, "away 32 days and not a countdown day");
-  assert.strictEqual(at(14).subject, "Drillbit: Meta interview in 14 days");
+  assert.strictEqual(at(14).subject, "Algostead: Meta interview in 14 days");
   assert.match(at(7).lines[0], /^Meta interview in 7 days\. Your plan is in final review mode\.$/);
   assert.match(at(1).lines[0], /^Meta interview in 1 day\. Keep today light/);
   const noCompany = buildReminder(active("2026-03-04", { profile: { interviewDate: "2026-03-08", language: "js", company: null } }), ctx, "2026-03-05");
-  assert.strictEqual(noCompany.subject, "Drillbit: interview in 3 days");
+  assert.strictEqual(noCompany.subject, "Algostead: interview in 3 days");
 });
 
 test("buildReminder: debrief ask on days 1 and 3 after the interview, until one is saved", () => {
@@ -140,9 +140,9 @@ test("buildReminder: debrief ask on days 1 and 3 after the interview, until one 
   const at = (day, over = {}) => buildReminder(active("2026-03-03", { profile: { ...profile, ...over } }), ctx, day);
   assert.deepStrictEqual(["2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08"].map(d => (at(d) || {}).kind || null),
     ["daily", "debrief", "winback", "debrief", null], "interview day is a normal day; other days follow the win-back rules");
-  assert.strictEqual(at("2026-03-05").subject, "Drillbit: how did the Amazon interview go?");
+  assert.strictEqual(at("2026-03-05").subject, "Algostead: how did the Amazon interview go?");
   assert.match(at("2026-03-05").lines[0], /^How did the Amazon interview go?/);
-  assert.strictEqual(at("2026-03-05", { company: null }).subject, "Drillbit: how did your interview go?");
+  assert.strictEqual(at("2026-03-05", { company: null }).subject, "Algostead: how did your interview go?");
   const saved = at("2026-03-07", { debriefs: [{ id: "d", at: "2026-03-05", date: "2026-03-04", company: "Amazon", outcome: "waiting", came: [], hard: [], note: "" }] });
   assert.notStrictEqual(saved && saved.kind, "debrief", "a saved debrief stops the ask");
 });
@@ -282,7 +282,7 @@ test("cron: push goes to every subscription, dead ones are deleted, and push alo
   assert.deepStrictEqual(h.deleted, ["p4"]);
   assert.deepStrictEqual(h.marked.map(m => m[0]).sort(), ["both", "pushonly"]);
   const p = h.pushed[0][1];
-  assert.ok(p.title && !p.title.startsWith("Drillbit:") && p.url === "https://drillbit.test");
+  assert.ok(p.title && !p.title.startsWith("Algostead:") && p.url === "https://drillbit.test");
 });
 
 test("cron: a push failure doesn't block email, and an email failure doesn't block push", async () => {

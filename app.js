@@ -259,7 +259,7 @@
       </section>`;
   };
   const pushControl = r => !AUTH.pushSupported()
-    ? `<span class="muted small">Browser notifications aren't available in this browser. On iPhone, add Drillbit to your home screen first.</span>`
+    ? `<span class="muted small">Browser notifications aren't available in this browser. On iPhone, add Algostead to your home screen first.</span>`
     : r.push
     ? `<span class="muted">Browser notifications are on for this device.</span><button class="btn ghost" data-act="push-off">Turn off</button>`
     : `<span class="muted">Get the same reminder as a browser notification on this device.</span><button class="btn ghost" data-act="push-on">Turn on notifications</button>`;
@@ -556,7 +556,7 @@
     const sans = "system-ui, -apple-system, Segoe UI, sans-serif", mono = "ui-monospace, Menlo, monospace";
     g.fillStyle = "#0a0b0f"; g.fillRect(0, 0, W, H);
     g.fillStyle = "#b6ff3b"; g.fillRect(0, 0, W, 6);
-    g.font = `600 26px ${mono}`; g.fillText("DRILLBIT", 64, 80);
+    g.font = `600 26px ${mono}`; g.fillText("ALGOSTEAD", 64, 80);
     g.fillStyle = "#8d94a8"; g.font = `24px ${sans}`; g.textAlign = "right";
     g.fillText(CORE.parse(sum.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), W - 64, 80);
     g.textAlign = "left"; g.fillStyle = "#e9ecf2"; g.font = `700 64px ${sans}`;
@@ -1670,7 +1670,7 @@
     const blob = new Blob([JSON.stringify(S, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `drillbit-progress-${today()}.json`;
+    a.download = `algostead-progress-${today()}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
@@ -1684,7 +1684,7 @@
           const data = JSON.parse(txt);
           if (!data || ![1, 2, 3].includes(data.v) || !data.items) throw new Error();
           S = CORE.migrate(data); save(); reconcileStreak(); go(""); toast("Progress imported.");
-        } catch (e) { toast("That file doesn't look like a Drillbit export."); }
+        } catch (e) { toast("That file doesn't look like a Algostead export."); }
       });
     };
     input.click();
@@ -1706,7 +1706,7 @@
       case "share-download": {
         const a = document.createElement("a");
         a.href = $("#share-img").src;
-        a.download = `drillbit-readiness-${today()}.png`;
+        a.download = `algostead-readiness-${today()}.png`;
         a.click();
         ANALYTICS.track("share_card", { how: "image", proven: shareSum().ready.length });
         break;

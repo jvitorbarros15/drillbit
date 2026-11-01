@@ -65,7 +65,7 @@ const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFo
         } catch (e) { console.error("reminder email failed", row.id, e && e.message); }
       }
       if (row.push_enabled && sendPush) {
-        const payload = { title: msg.subject.replace(/^Drillbit: /, ""), body: msg.lines[0] || "", url: base || "/" };
+        const payload = { title: msg.subject.replace(/^Algostead: /, ""), body: msg.lines[0] || "", url: base || "/" };
         const subs = await db.pushSubscriptions(row.id).catch(e => { console.error("push lookup failed", row.id, e && e.message); return []; });
         for (const sub of subs) {
           try {
