@@ -19,6 +19,7 @@ test.before(async () => {
   await db.exec(read("supabase/migrations/20261030010000_push.sql"));
   await db.exec(read("supabase/migrations/20261031000000_attempt_plan.sql"));
   await db.exec(read("supabase/migrations/20261031010000_claim_push.sql"));
+  await db.exec(read("supabase/migrations/20261031020000_revoke_repack.sql"));
   await db.exec(`
     insert into auth.users (id, email) values ('${A}', 'a@x.test'), ('${B}', 'b@x.test');
     insert into public.attempts (user_id, item_id, correct) values ('${A}', 'q1', true), ('${B}', 'q2', false);
@@ -219,6 +220,30 @@ test("revoke_entitlement sets revoked_at and has_access turns false", async () =
   assert.strictEqual((await rows(`select count(*)::int as n from public.entitlements where stripe_payment_intent = 'pi_d1' and revoked_at is not null`))[0].n, 1);
   await db.exec(`update public.entitlements set revoked_at = now() where user_id = '${D}'`);
   assert.strictEqual((await rows(`select public.has_access('${D}') as ok`))[0].ok, false);
+});
+
+test("revoking a pass pulls the next stacked pass forward, and access_until reports the paid time", async () => {
+  const E = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+  await db.exec("reset role");
+  await db.exec(`insert into auth.users (id, email) values ('${E}', 'e@x.test')`);
+  await asService();
+  await grant(E, "cs_e1", "pi_e1");
+  await grant(E, "cs_e2", "pi_e2");
+  await grant(E, "cs_e3", "pi_e3");
+  const days = async () => (await rows(`select stripe_session_id as s, round(extract(epoch from starts_at - now()) / 86400) as st, round(extract(epoch from expires_at - now()) / 86400) as en from public.entitlements where user_id = '${E}' and revoked_at is null order by starts_at`)).map(r => [r.s, +r.st, +r.en]);
+  assert.deepStrictEqual(await days(), [["cs_e1", 0, 30], ["cs_e2", 30, 60], ["cs_e3", 60, 90]]);
+  const until = async () => Math.round((new Date((await rows(`select public.access_until('${E}') as u`))[0].u) - Date.now()) / 86400000);
+  assert.strictEqual(await until(), 90);
+  assert.strictEqual((await rows("select public.revoke_entitlement('pi_e1') as n"))[0].n, 1);
+  assert.deepStrictEqual(await days(), [["cs_e2", 0, 30], ["cs_e3", 30, 60]], "the refunded pass's time is closed up");
+  assert.strictEqual((await rows(`select public.has_access('${E}') as ok`))[0].ok, true, "the second pass works right away");
+  assert.strictEqual(await until(), 60);
+  assert.strictEqual((await rows("select public.revoke_entitlement('pi_e3') as n"))[0].n, 1);
+  assert.deepStrictEqual(await days(), [["cs_e2", 0, 30]], "revoking the last pass moves nothing");
+  await db.exec(`update public.entitlements set revoked_at = now() where user_id = '${E}'`);
+  assert.strictEqual((await rows(`select public.access_until('${E}') as u`))[0].u, null);
+  await as(A);
+  await assert.rejects(db.query(`select public.access_until('${A}')`), /permission denied/);
 });
 
 test("grant and revoke are not executable by authenticated or anon", async () => {
