@@ -45,7 +45,7 @@ const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFo
       const msg = buildReminder(progress, contentFor(active), date, active ? null : FREE_PATTERNS);
       if (!msg) { skipped++; return; }
       // free sessions used up: no "today's session" nudges for a session the app won't start
-      if (!active && CORE.sessionsDone(progress || {}) >= CORE.FREE_SESSIONS && (msg.kind === "daily" || msg.kind === "winback")) { skipped++; return; }
+      if (!active && CORE.sessionsDone({ days: (progress && progress.days) || {} }) >= CORE.FREE_SESSIONS && (msg.kind === "daily" || msg.kind === "winback")) { skipped++; return; }
       // claim the day first so an overlapping run can't send the same reminder twice
       if (!(await db.claimReminder(row.id, date))) { skipped++; return; }
       claimed = true;
@@ -71,7 +71,7 @@ const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFo
           try {
             const r = await sendPush(sub, payload);
             if (r && r.gone) await db.deletePushSubscription(sub.endpoint);
-            else delivered = true;
+            else if (!(r && r.mocked)) delivered = true;
           } catch (e) { console.error("reminder push failed", row.id, e && e.message); }
         }
       }
