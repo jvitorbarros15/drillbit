@@ -41,7 +41,8 @@ function setup({ config, remote = null, failUpdate = false, fetchStatus = 200, t
           insert: (...a) => builder(table, "insert", a),
           upsert: (...a) => builder(table, "upsert", a),
           delete: (...a) => builder(table, "delete", a)
-        })
+        }),
+        rpc: (fn, a) => builder(fn, "rpc", [a])
       };
     }
   };
@@ -306,8 +307,8 @@ test("enablePush subscribes, stores the subscription and turns push on for the p
   assert.deepStrictEqual(json(r), { ok: true });
   assert.deepStrictEqual(p.log.map(x => x[0]), ["register", "subscribe"]);
   assert.strictEqual(p.log[1][1], true);
-  const up = ops(t.calls, "upsert").find(c => c.table === "push_subscriptions");
-  assert.deepStrictEqual(json(up.args), [{ endpoint: "https://push.test/new", p256dh: "pk", auth: "ak", user_id: "u1" }, { onConflict: "endpoint", ignoreDuplicates: true }]);
+  const claim = ops(t.calls, "rpc").find(c => c.table === "claim_push_subscription");
+  assert.deepStrictEqual(json(claim.args), [{ p_endpoint: "https://push.test/new", p_p256dh: "pk", p_auth: "ak" }]);
   const prof = ops(t.calls, "update").filter(c => c.table === "profiles").pop();
   assert.deepStrictEqual(json(prof.args[0]), { push_enabled: true, reminder_hour: 8, timezone: "America/New_York" });
 });

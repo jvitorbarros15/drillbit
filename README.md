@@ -140,7 +140,7 @@ One message a day at most, at the hour the user picks, by email and optionally a
 - 1 and 3 days after the interview date, a debrief ask, until the user saves one.
 - Nothing on a day the session is already done.
 
-Browser push needs `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` on the server (generate with `npx web-push generate-vapid-keys`), plus `supabase/migrations/20261030010000_push.sql`. The build writes only the public key into `config.js`. `sw.js` shows the notification and opens the app on click. Signing out removes the browser's subscription. Dead subscriptions are deleted when the push service reports them gone. iPhone only supports web push after the site is added to the home screen.
+Browser push needs `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` on the server (generate with `npx web-push generate-vapid-keys`), plus `supabase/migrations/20261030010000_push.sql` and `20261031010000_claim_push.sql`. Turning notifications on claims the browser's endpoint for the signed-in account, even if another account registered it first. The build writes only the public key into `config.js`. `sw.js` shows the notification and opens the app on click. Signing out removes the browser's subscription. Dead subscriptions are deleted when the push service reports them gone. iPhone only supports web push after the site is added to the home screen.
 
 ## Reminder emails
 

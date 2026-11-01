@@ -188,7 +188,7 @@
       const reg = await navigator.serviceWorker.register("/sw.js");
       const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64(cfg.vapidPublicKey) });
       const j = sub.toJSON();
-      check(await client.from("push_subscriptions").upsert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, user_id: user.id }, { onConflict: "endpoint", ignoreDuplicates: true }));
+      check(await client.rpc("claim_push_subscription", { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth }));
       check(await client.from("profiles").update({ push_enabled: true, reminder_hour: hour, timezone }).eq("id", user.id));
       return { ok: true };
     }),

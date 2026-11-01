@@ -18,6 +18,7 @@ test.before(async () => {
   await db.exec(read("supabase/migrations/20261030000000_attempt_detail.sql"));
   await db.exec(read("supabase/migrations/20261030010000_push.sql"));
   await db.exec(read("supabase/migrations/20261031000000_attempt_plan.sql"));
+  await db.exec(read("supabase/migrations/20261031010000_claim_push.sql"));
   await db.exec(`
     insert into auth.users (id, email) values ('${A}', 'a@x.test'), ('${B}', 'b@x.test');
     insert into public.attempts (user_id, item_id, correct) values ('${A}', 'q1', true), ('${B}', 'q2', false);
@@ -93,6 +94,23 @@ test("push subscriptions: own insert, select and delete only", async () => {
   await as(A);
   assert.strictEqual((await db.query(`update public.profiles set push_enabled = true where id = '${A}'`)).affectedRows, 1);
   assert.strictEqual((await db.query("delete from public.push_subscriptions")).affectedRows, 1);
+});
+
+test("claiming a push endpoint moves it to the caller, and needs a signed-in user", async () => {
+  await as(A);
+  await db.query("insert into public.push_subscriptions (endpoint, p256dh, auth) values ('https://push.test/shared', 'k1', 's1')");
+  await as(B);
+  await db.query("select public.claim_push_subscription('https://push.test/shared', 'k2', 's2')");
+  const mine = await rows("select user_id, p256dh from public.push_subscriptions where endpoint = 'https://push.test/shared'");
+  assert.deepStrictEqual(mine.map(r => [r.user_id, r.p256dh]), [[B, "k2"]]);
+  await as(A);
+  assert.strictEqual((await rows("select * from public.push_subscriptions where endpoint = 'https://push.test/shared'")).length, 0, "A no longer sees it");
+  await as(null, "anon");
+  await assert.rejects(db.query("select public.claim_push_subscription('https://push.test/x', 'k', 's')"), /permission denied/);
+  await as(null);
+  await assert.rejects(db.query("select public.claim_push_subscription('https://push.test/x', 'k', 's')"), /not signed in/);
+  await as(B);
+  await db.query("delete from public.push_subscriptions");
 });
 
 test("attempts cannot be updated or deleted", async () => {
