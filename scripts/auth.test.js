@@ -335,3 +335,18 @@ test("disablePush and sign-out remove this device's subscription", async () => {
   assert.deepStrictEqual(q.log, [["unsubscribe", "https://push.test/shared"]]);
   assert.ok(ops(u.calls, "signOut").length === 1);
 });
+
+test("sign-out sends a save still waiting on the delay, and the timer never fires afterwards", async () => {
+  const t = setup({ config: CFG });
+  await t.signIn();
+  const before = ops(t.calls, "update").length;
+  await t.AUTH.push({ v: 3, streak: 7 });
+  await t.AUTH.signOut();
+  const ups = ops(t.calls, "update");
+  assert.strictEqual(ups.length, before + 1, "flushed once on sign-out");
+  assert.strictEqual(ups[ups.length - 1].args[0].progress.streak, 7);
+  mock.timers.tick(5000);
+  await flush();
+  assert.strictEqual(ops(t.calls, "update").length, before + 1, "the delayed save didn't run again with no user");
+  assert.ok(ops(t.calls, "update").indexOf(ups[ups.length - 1]) >= 0 && t.calls.indexOf(ups[ups.length - 1]) < t.calls.findIndex(c => c.op === "signOut"), "saved before the session ended");
+});

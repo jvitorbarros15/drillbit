@@ -151,7 +151,10 @@
     }),
     signOut: () => guard(async () => {
       clearTimeout(timer);
+      const last = pending;
       pending = null;
+      // send a save still waiting on the delay before the session goes away
+      try { if (last && user) await pushNow(last); } catch (e) { /* signing out must still work */ }
       try { if (user) await dropDevice(); } catch (e) { /* signing out must still work */ }
       check(await client.auth.signOut());
       user = null; syncedFor = null; lastQueue = "";
