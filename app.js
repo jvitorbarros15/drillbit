@@ -515,11 +515,68 @@
     }).join("");
     return `
       <section class="panel">
-        <div class="panel-head"><h3>Readiness map</h3><span class="muted small">${PATTERNS.length} patterns</span></div>
+        <div class="panel-head"><h3>Readiness map</h3><span class="muted small">${PATTERNS.length} patterns <button class="link" data-act="share">Share</button></span></div>
         <p class="muted small">Ready means two different problems solved, then a problem solved alone with no hints on a later day. It reflects your practice here, not a hiring prediction.</p>
         <div class="rd-grid">${cells}</div>
       </section>`;
   }
+
+  // ---------- share: an image and a line of text built only from the readiness map ----------
+  const shareSum = () => CORE.shareSummary(S, ctx, today(), META && META.patternsWithContent);
+  function renderShare() {
+    run = null; cur = null;
+    setNav("");
+    renderChips();
+    const sum = shareSum();
+    app.innerHTML = `
+      <section class="learn-head">
+        <p class="eyebrow">Share</p>
+        <h1>Show your work.</h1>
+        <p class="muted">Built only from your readiness map: which patterns you've proven and when. No scores, no predictions. Nothing is uploaded; you download the image or copy the text yourself.</p>
+      </section>
+      <section class="panel">
+        <img class="share-img" id="share-img" alt="Readiness card: ${sum.ready.length} of ${sum.total} patterns proven" />
+        <textarea class="db-note share-text" id="share-text" rows="3" readonly>${esc(CORE.shareText(sum))}</textarea>
+        <div class="hero-cta">
+          <button class="btn primary" data-act="share-download">Download image</button>
+          <button class="btn ghost" data-act="share-copy">Copy text</button>
+        </div>
+      </section>`;
+    $("#share-img").src = shareCanvas(sum).toDataURL("image/png");
+  }
+
+  function shareCanvas(sum) {
+    const W = 1200, H = 630, c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const g = c.getContext("2d");
+    const sans = "system-ui, -apple-system, Segoe UI, sans-serif", mono = "ui-monospace, Menlo, monospace";
+    g.fillStyle = "#0a0b0f"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#b6ff3b"; g.fillRect(0, 0, W, 6);
+    g.font = `600 26px ${mono}`; g.fillText("DRILLBIT", 64, 80);
+    g.fillStyle = "#8d94a8"; g.font = `24px ${sans}`; g.textAlign = "right";
+    g.fillText(CORE.parse(sum.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), W - 64, 80);
+    g.textAlign = "left"; g.fillStyle = "#e9ecf2"; g.font = `700 64px ${sans}`;
+    g.fillText(`${sum.ready.length} of ${sum.total} patterns proven`, 64, 180);
+    const cols = 2, shown = sum.ready.slice(0, 8);
+    shown.forEach((r, i) => {
+      const x = 64 + (i % cols) * 540, y = 250 + Math.floor(i / cols) * 58;
+      g.fillStyle = "#3ddc97"; g.beginPath(); g.arc(x + 8, y - 9, 8, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#e9ecf2"; g.font = `30px ${sans}`; g.fillText(fit(g, r.name.split(":")[0], 360), x + 28, y);
+      g.fillStyle = "#8d94a8"; g.font = `22px ${sans}`; g.fillText(shortDate(r.at), x + 420, y);
+    });
+    const extra = [];
+    if (sum.ready.length > shown.length) extra.push(`+${sum.ready.length - shown.length} more proven`);
+    if (sum.practicing) extra.push(`practicing ${sum.practicing} more`);
+    if (sum.streak) extra.push(`${sum.streak} day streak`);
+    if (!sum.ready.length) extra.unshift("Just getting started");
+    const line = extra.join("  ·  ");
+    g.fillStyle = "#e9ecf2"; g.font = `26px ${sans}`; g.fillText(line.charAt(0).toUpperCase() + line.slice(1), 64, 510);
+    g.fillStyle = "#8d94a8"; g.font = `20px ${sans}`;
+    g.fillText("Proven: two problems solved, then a new one solved alone with no hints on a later day.", 64, 566);
+    g.fillText("A record of practice, not a hiring prediction.", 64, 594);
+    return c;
+  }
+  const fit = (g, text, w) => { let t = text; while (g.measureText(t).width > w && t.length > 4) t = t.slice(0, -2); return t === text ? t : t.trimEnd() + "…"; };
 
   // ---------- repair: a free user's one guided fix for the weakest paid pattern the diagnostic tested ----------
   const openTags = pid => Object.entries(S.misses).filter(([t, m]) => !m.resolved && MISC[t] && PAT_BY_ID[pid].misconceptions.some(x => x.id === t)).map(([t]) => t);
@@ -958,6 +1015,7 @@
     else if (h === "account") renderAccount();
     else if (h === "pass") renderPass();
     else if (h === "interview") renderInterview();
+    else if (h === "share") renderShare();
     else renderHome();
     window.scrollTo(0, 0);
   }
@@ -1633,6 +1691,22 @@
       case "learn": go("#learn"); break;
       case "practice-nav": go("#practice"); break;
       case "mock": startMock(); window.scrollTo(0, 0); break;
+      case "share": go("#share"); break;
+      case "share-download": {
+        const a = document.createElement("a");
+        a.href = $("#share-img").src;
+        a.download = `drillbit-readiness-${today()}.png`;
+        a.click();
+        ANALYTICS.track("share_card", { how: "image", proven: shareSum().ready.length });
+        break;
+      }
+      case "share-copy": {
+        const text = $("#share-text").value;
+        const done = () => { toast("Copied."); ANALYTICS.track("share_card", { how: "text", proven: shareSum().ready.length }); };
+        if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, () => { $("#share-text").select(); toast("Select and copy the text."); });
+        else { $("#share-text").select(); toast("Select and copy the text."); }
+        break;
+      }
       case "db-chip": {
         const set = dbPick[el.dataset.row];
         set.has(el.dataset.id) ? set.delete(el.dataset.id) : set.add(el.dataset.id);
