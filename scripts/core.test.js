@@ -53,6 +53,21 @@ test("pickMock takes unseen interview-sized problems from different patterns", (
   assert.deepStrictEqual(C.pickMock(s, { ...ctx, lessons: ctx.lessons.filter(l => l.id !== "cb1") }, rng).length, 1, "one pattern with code gives one problem");
 });
 
+test("shareSummary only reports evidence from the readiness map", () => {
+  const s = ready(st());
+  s.patterns.pc.check.at = "2026-03-09";
+  s.streak = 4; s.best = 9;
+  rec(s, { lessonId: "qa1", correct: true });
+  const sum = C.shareSummary(s, ctx, T, 13);
+  assert.deepStrictEqual(sum.ready.map(r => r.id), ["pb", "pc"], "newest evidence first");
+  assert.deepStrictEqual([sum.total, sum.practicing, sum.streak, sum.due.length], [13, 1, 4, 0]);
+  assert.strictEqual(C.shareText(sum), "My Drillbit readiness, 2026-03-10: 2 of 13 patterns proven. Proven (two problems solved, then a new one solved alone on a later day): PB, PC. Practicing 1 more. 4 day streak.");
+  const old = prove(st(), "pb", ["qb1", "cb1"], "2026-01-01");
+  const s2 = C.shareSummary(old, ctx, T);
+  assert.deepStrictEqual([s2.ready.length, s2.due, s2.total], [0, ["PB"], 3], "stale evidence is due, and total defaults to patterns with content");
+  assert.strictEqual(C.shareText(C.shareSummary(st(), ctx, T)), "My Drillbit readiness, 2026-03-10: 0 of 3 patterns proven.");
+});
+
 test("dates and rng", () => {
   assert.strictEqual(C.addDays("2026-02-27", 3), "2026-03-02");
   assert.strictEqual(C.diffDays("2026-03-10", "2026-03-01"), 9);

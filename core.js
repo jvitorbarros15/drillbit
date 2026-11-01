@@ -528,13 +528,38 @@
     return out;
   }
 
+  // What a shared progress card may say: only evidence the readiness map already shows, nothing estimated.
+  // total is how many patterns have practice content in the full bank (a free build only holds some of them).
+  function shareSummary(state, ctx, today, total) {
+    const rows = readiness(state, ctx, today).filter(r => r.hasContent);
+    const ready = rows.filter(r => r.status === "ready").sort((a, b) => (a.check.at < b.check.at ? 1 : -1)).map(r => ({ id: r.id, name: r.name, at: r.check.at, kind: r.check.kind }));
+    return {
+      date: today,
+      total: total || rows.length,
+      ready,
+      due: rows.filter(r => r.status === "due").map(r => r.name),
+      practicing: rows.filter(r => r.status === "learning" || r.status === "shaky").length,
+      streak: state.streak || 0,
+      best: state.best || 0
+    };
+  }
+
+  function shareText(sum) {
+    const lines = [`My Drillbit readiness, ${sum.date}: ${sum.ready.length} of ${sum.total} patterns proven.`];
+    if (sum.ready.length) lines.push(`Proven (two problems solved, then a new one solved alone on a later day): ${sum.ready.map(r => r.name).join(", ")}.`);
+    if (sum.due.length) lines.push(`Due for a recheck: ${sum.due.join(", ")}.`);
+    if (sum.practicing) lines.push(`Practicing ${sum.practicing} more.`);
+    if (sum.streak) lines.push(`${sum.streak} day streak.`);
+    return lines.join(" ");
+  }
+
   const sessionsDone = state => Object.values(state.days).filter(d => d && d.done).length;
   const patternLocked = (meta, pid) => !!meta && meta.lockedPatterns.includes(pid);
 
   const CORE = {
     fmt, parse, addDays, diffDays, seededRng, blankState, migrate, patternOf, inferMiss, recordAttempt,
     dueTags, pickReview, readiness, schedule, companyOf, buildDiagnostic, recordDiagnostic, composeSession, mergeProgress, queueRows, sessionsDone, patternLocked, STALE_DAYS,
-    pickMock, MOCK_MINUTES, focusOf, debriefDue, recordDebrief
+    pickMock, MOCK_MINUTES, focusOf, debriefDue, recordDebrief, shareSummary, shareText
   };
   if (typeof module !== "undefined") module.exports = CORE;
   else window.CORE = CORE;
