@@ -315,6 +315,7 @@
     const c = companyById(id);
     S.profile.interviewDate = date;
     S.profile.company = c ? { id: c.id, name: c.name } : id === "other" && other ? { id: "other", name: other } : null;
+    S.profile.at = new Date().toISOString();
     save();
     ANALYTICS.track("interview_set", { company: S.profile.company ? S.profile.company.id : null, hasDate: !!date });
   }
@@ -381,8 +382,8 @@
   function saveDebrief(skip) {
     const next = !skip && $("#db-next").value || null;
     const d = skip
-      ? { id: newId(), outcome: "skip" }
-      : { id: newId(), outcome: $("#db-outcome").value, came: [...dbPick.came], hard: [...dbPick.hard], note: $("#db-note").value.trim().slice(0, 500), next };
+      ? { id: newId(), ts: new Date().toISOString(), outcome: "skip" }
+      : { id: newId(), ts: new Date().toISOString(), outcome: $("#db-outcome").value, came: [...dbPick.came], hard: [...dbPick.hard], note: $("#db-note").value.trim().slice(0, 500), next };
     CORE.recordDebrief(S, today(), d);
     save();
     ANALYTICS.track("debrief_saved", { outcome: d.outcome, came: (d.came || []).length, hard: (d.hard || []).length, nextRound: !!next });

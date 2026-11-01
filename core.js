@@ -279,8 +279,9 @@
   }
 
   // A debrief closes out the interview: the date moves to the next round when there is one, otherwise it clears.
-  function recordDebrief(state, today, { id, outcome, came = [], hard = [], note = "", next = null }) {
+  function recordDebrief(state, today, { id, ts, outcome, came = [], hard = [], note = "", next = null }) {
     const p = state.profile;
+    p.at = ts || today;
     if (!Array.isArray(p.debriefs)) p.debriefs = [];
     p.debriefs.push({ id: id || `${today}-${p.interviewDate || "none"}`, at: today, date: p.interviewDate, company: p.company ? p.company.name : null, outcome, came, hard, note });
     p.interviewDate = next && next > today ? next : null;
@@ -320,7 +321,7 @@
         const r = results[pid] || (results[pid] = { correct: 0, total: 0 });
         r.total++; if (a.correct) r.correct++;
       }
-      recordAttempt(state, ctx, today, { lessonId: a.lessonId, correct: a.correct, tag: a.tag, hinted: false, diagnostic: true });
+      recordAttempt(state, ctx, today, { ...a, hinted: false, diagnostic: true });
     }
     state.diagnostic = { at: today, results };
     return state;
@@ -393,8 +394,8 @@
     for (let pass = 0; pass < 3 && out.length < 3; pass++)
       for (const r of order) {
         if (out.length >= 3) break;
-        const ex = checkFor(r.id) || exerciseFor(r.id);
-        if (ex) add({ kind: "exercise", lessonId: ex.id, independent: true });
+        const chk = checkFor(r.id), ex = chk || exerciseFor(r.id);
+        if (ex) add({ kind: "exercise", lessonId: ex.id, independent: !!chk });
       }
     return out;
   }
@@ -478,9 +479,9 @@
     const ds = {};
     for (const id of new Set([...Object.keys(l.drafts), ...Object.keys(r.drafts)]))
       ds[id] = !r.drafts[id] ? l.drafts[id] : !l.drafts[id] ? r.drafts[id] : l.drafts[id].ts > r.drafts[id].ts ? l.drafts[id] : r.drafts[id];
-    // the side that recorded the newest debrief has the current interview date; debriefs from both sides are kept
-    const lastAt = s => debriefsOf(s).reduce((m, d) => (d.at > m ? d.at : m), "");
-    const profile = lastAt(l) > lastAt(r) ? { ...l.profile } : lastAt(r) > lastAt(l) || r.profile.interviewDate ? { ...r.profile } : { ...l.profile };
+    // profile.at marks the last edit (date, company or debrief), so the newer edit wins; debriefs from both sides are kept
+    const la = l.profile.at || "", ra = r.profile.at || "";
+    const profile = la > ra ? { ...l.profile } : ra > la || r.profile.interviewDate ? { ...r.profile } : { ...l.profile };
     const byId = new Map([...debriefsOf(l), ...debriefsOf(r)].map(d => [d.id, d]));
     profile.debriefs = [...byId.values()].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : a.id < b.id ? -1 : 1));
     return clone({

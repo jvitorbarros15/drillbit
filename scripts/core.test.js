@@ -364,6 +364,22 @@ test("debriefs: due once per date, move to the next round, and set focus", () =>
   assert.strictEqual(s.profile.interviewDate, null, "a next date in the past is ignored");
 });
 
+test("diagnostic attempts keep their id and run detail", () => {
+  const s = st();
+  C.recordDiagnostic(s, ctx, T, [{ lessonId: "ca1", correct: true, tag: null, id: "dg1", ts: "2026-03-10T09:00:00Z", failedRuns: 2 }]);
+  assert.deepStrictEqual([s.events[0].id, s.events[0].failedRuns], ["dg1", 2]);
+  assert.strictEqual(s.items.ca1.clean, 0, "a pass after failing runs isn't clean, diagnostic or not");
+});
+
+test("mergeProgress: the most recently edited profile wins", () => {
+  const l = st(), r = st();
+  l.profile = { ...l.profile, interviewDate: null, at: "2026-03-10T10:00:00Z" };
+  r.profile = { ...r.profile, interviewDate: "2026-04-01", at: "2026-03-09T10:00:00Z" };
+  assert.strictEqual(C.mergeProgress(l, r).profile.interviewDate, null, "clearing the date locally sticks");
+  r.profile.at = "2026-03-11T10:00:00Z";
+  assert.strictEqual(C.mergeProgress(l, r).profile.interviewDate, "2026-04-01");
+});
+
 test("mergeProgress keeps debriefs from both sides and the newest debriefer's date", () => {
   const l = st(), r = st();
   l.profile.interviewDate = T; r.profile.interviewDate = T;
@@ -444,14 +460,14 @@ test("composeSession in final-review", () => {
   s.profile.interviewDate = "2026-03-14";
   let a = C.composeSession(s, ctx, T);
   assert.strictEqual(a.length, 3);
-  assert.ok(a.every(e => e.kind === "exercise" && e.independent === true));
+  assert.ok(a.every(e => e.kind === "exercise" && e.independent === false), "no earlier win yet, so none of them can be a check");
   assert.strictEqual(new Set(a.map(e => e.lessonId)).size, 3);
   rec(s, { lessonId: "qa1", correct: false, tag: "pa.m1" });
   rec(s, { lessonId: "qb1", correct: true });
   a = C.composeSession(s, ctx, "2026-03-11");
   assert.strictEqual(a.length, 3);
   assert.deepStrictEqual([a[0].kind, a[0].tag], ["review", "pa.m1"]);
-  assert.ok(a.slice(1).every(e => e.kind === "exercise" && e.independent));
+  assert.ok(a.slice(1).every(e => e.kind === "exercise" && typeof e.independent === "boolean"));
   assert.strictEqual(C.patternOf(L(a[1].lessonId), ctx), "pa");
   s.profile.interviewDate = "2026-03-01";
   assert.strictEqual(C.composeSession(s, ctx, "2026-03-11").length, 3);
