@@ -1,4 +1,5 @@
 const crypto = require("node:crypto");
+const { same } = require("./http");
 
 function createUnsubscribe(secret) {
   const sign = userId => {
@@ -9,7 +10,7 @@ function createUnsubscribe(secret) {
     if (!secret || !userId || typeof token !== "string") return false;
     const a = Buffer.from(sign(userId));
     const b = Buffer.from(token);
-    return a.length === b.length && crypto.timingSafeEqual(a, b);
+    return same(a, b);
   };
   return { token: sign, verify };
 }
