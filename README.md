@@ -6,7 +6,7 @@ Short daily sessions for algorithm patterns, plus system design practice. Take a
 
 - **Diagnostic**: 8 questions across core patterns, no signup. Results show for every pattern it tested, with the mistake behind each miss. One question per pattern is a first signal, and the app says so.
 - **Free repair**: a free user gets one repair sequence for the weakest paid pattern the diagnostic tested: the fix for their mistake, a recognition question and a different coding problem. The build ships one recognition item and one coding problem per diagnosed paid pattern for this.
-- **Readiness map**: 13 algorithm patterns, each marked New, Learning, Shaky, Ready or Review due, with open misconceptions and the date of the latest evidence. Ready needs two different problems solved, then a coding problem solved alone (no hints, passing on the first test run) on a later day than the first win. The last unseen coding problem in each pattern is held back for that check. Once every problem has been seen, a retry of one never solved unaided counts, and is labeled a retry. Ready turns into Review due after 30 days. Click a pattern to open its guide.
+- **Readiness map**: 13 algorithm patterns, each marked New, Learning, Shaky, Ready or Review due, with open misconceptions and the date of the latest evidence. Ready needs a problem solved first, then a new coding problem solved alone (no hints, passing on the first test run) on a later day than the first win. The last unseen coding problem in each pattern is held back for that check. Once every problem has been seen, a retry of one never solved unaided counts, and is labeled a retry. Ready turns into Review due after 30 days. Click a pattern to open its guide.
 - **Daily session**: three steps picked from your schedule: a review of something you missed, a recognition question, a concept guide or an exercise, and an independent check with no hints once you have solved something in the pattern. The session is fixed for the day, so a reload resumes where you left off. Finishing it extends your streak.
 - **Misconception tracking**: a wrong answer is tagged with the mistake behind it, from the answer you picked, the failing test, or your own choice. Tagged misses come back after 1, 3 and 7 days until you get them right. A coding answer that passes after failing runs counts as practice, not an unaided solve; if a failing run showed a known mistake, it goes in the notebook and comes back in 3 days. Syntax and runtime errors don't count as conceptual misses.
 - **Interview date and company**: optional. The plan shows a countdown, your current focus pattern, and a final review week. Pick Google, Amazon, Meta, Microsoft, Apple or type another company. Each profile in `companies.js` uses only what that company publishes about its own interviews, with a source link on every fact and a checked date. Patterns a company names (Meta names binary trees, Microsoft names its data structures and sorting) move to the front of the plan right after your diagnosed weak spots. Google and Apple don't publish a topic list we could verify, and their profiles say so.
@@ -37,7 +37,7 @@ Without `config.js` nothing account related loads. With it, the page loads `@sup
 
 ## Payments (Sprint Pass, test mode first)
 
-A 30 day Sprint Pass is sold through Stripe Checkout (`mode: "payment"`). Access is granted only by the webhook, never by the success page, and stored in the `entitlements` table. Buying again extends access from the current expiry. A full refund or a dispute revokes it.
+A 30 day Sprint Pass is sold through Stripe Checkout (`mode: "payment"`). Access is granted only by the webhook, never by the success page, and stored in the `entitlements` table. Buying again extends access from the current expiry. A full refund or a lost dispute revokes it, and later stacked passes move up to fill the gap.
 
 Server routes live in `api/`: `checkout.js` (needs a Supabase access token), `stripe-webhook.js` and `access.js`.
 
@@ -49,7 +49,7 @@ Server routes live in `api/`: `checkout.js` (needs a Supabase access token), `st
    - `checkout.session.async_payment_succeeded`
    - `checkout.session.async_payment_failed` (logged only)
    - `charge.refunded`
-   - `charge.dispute.created`
+   - `charge.dispute.closed`
 5. Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_SPRINT`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `APP_URL` (no trailing slash). The service role key bypasses RLS, so keep it server side only.
 
 ## Free and paid content

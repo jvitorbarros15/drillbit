@@ -144,8 +144,12 @@ test("webhook: a full refund revokes and a partial refund does not", async () =>
   assert.strictEqual(partial.db.calls.revoke.length, 0);
 });
 
-test("webhook: a dispute revokes the payment intent", async () => {
-  const { db } = await send("charge.dispute.created", { id: "dp_1", payment_intent: "pi_9" });
+test("webhook: a lost dispute revokes the payment intent, a won or open one doesn't", async () => {
+  const open = await send("charge.dispute.created", { id: "dp_0", payment_intent: "pi_9" });
+  assert.deepStrictEqual(open.db.calls.revoke, []);
+  const won = await send("charge.dispute.closed", { id: "dp_w", payment_intent: "pi_9", status: "won" });
+  assert.deepStrictEqual(won.db.calls.revoke, []);
+  const { db } = await send("charge.dispute.closed", { id: "dp_1", payment_intent: "pi_9", status: "lost" });
   assert.deepStrictEqual(db.calls.revoke, ["pi_9"]);
 });
 
@@ -154,9 +158,9 @@ test("webhook: a full refund and a dispute send the refund event", async () => {
   assert.deepStrictEqual(full.analytics.calls, [["refund", "pi_1", { kind: "refund" }]]);
   const partial = await send("charge.refunded", { id: "ch_1", refunded: false, payment_intent: "pi_1" });
   assert.strictEqual(partial.analytics.calls.length, 0);
-  const dispute = await send("charge.dispute.created", { id: "dp_1", payment_intent: "pi_9" });
+  const dispute = await send("charge.dispute.closed", { id: "dp_1", payment_intent: "pi_9", status: "lost" });
   assert.deepStrictEqual(dispute.analytics.calls, [["refund", "u9", { kind: "dispute" }]], "a dispute is attributed to the buyer");
-  const unknown = await send("charge.dispute.created", { id: "dp_2", payment_intent: "pi_x" });
+  const unknown = await send("charge.dispute.closed", { id: "dp_2", payment_intent: "pi_x", status: "lost" });
   assert.deepStrictEqual(unknown.analytics.calls, [["refund", "pi_x", { kind: "dispute" }]]);
 });
 

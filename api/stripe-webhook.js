@@ -31,13 +31,14 @@ const create = ({ stripe, db, config, analytics }) => async (req, res) => {
       case "charge.refunded":
         if (obj.refunded === true && obj.payment_intent) {
           await db.revoke(obj.payment_intent);
-          await track("refund", (obj.metadata && obj.metadata.user_id) || obj.payment_intent, { kind: "refund" });
+          const uid = (obj.metadata && obj.metadata.user_id) || await db.userForPayment(obj.payment_intent).catch(() => null);
+          await track("refund", uid || obj.payment_intent, { kind: "refund" });
         }
         break;
-      case "charge.dispute.created":
-        if (obj.payment_intent) {
+      // revoke only when the dispute is lost; a won dispute means the payment stands
+      case "charge.dispute.closed":
+        if (obj.payment_intent && obj.status === "lost") {
           await db.revoke(obj.payment_intent);
-          // a Dispute carries no checkout metadata, so the buyer comes from the entitlement
           const uid = await db.userForPayment(obj.payment_intent).catch(() => null);
           await track("refund", uid || obj.payment_intent, { kind: "dispute" });
         }
