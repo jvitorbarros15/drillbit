@@ -144,7 +144,7 @@ test("the legal pages are built and use the stylesheet", () => {
   build(out, {});
   for (const f of ["terms.html", "privacy.html", "refund.html"]) {
     const html = fs.readFileSync(path.join(out, f), "utf8");
-    assert.ok(html.includes('href="styles.css"') && html.includes("[Support email]"), f);
+    assert.ok(html.includes('href="styles.css"') && html.includes("jvitorbarros15@gmail.com"), f);
   }
 });
 
