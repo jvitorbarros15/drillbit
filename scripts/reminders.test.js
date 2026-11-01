@@ -135,6 +135,18 @@ test("buildReminder: interview countdown at 14, 7, 3 and 1 days, even when away"
   assert.strictEqual(noCompany.subject, "Drillbit: interview in 3 days");
 });
 
+test("buildReminder: debrief ask on days 1 and 3 after the interview, until one is saved", () => {
+  const profile = { interviewDate: "2026-03-04", language: "js", company: { id: "amazon", name: "Amazon" }, debriefs: [] };
+  const at = (day, over = {}) => buildReminder(active("2026-03-03", { profile: { ...profile, ...over } }), ctx, day);
+  assert.deepStrictEqual(["2026-03-04", "2026-03-05", "2026-03-06", "2026-03-07", "2026-03-08"].map(d => (at(d) || {}).kind || null),
+    ["daily", "debrief", "winback", "debrief", null], "interview day is a normal day; other days follow the win-back rules");
+  assert.strictEqual(at("2026-03-05").subject, "Drillbit: how did the Amazon interview go?");
+  assert.match(at("2026-03-05").lines[0], /^How did the Amazon interview go?/);
+  assert.strictEqual(at("2026-03-05", { company: null }).subject, "Drillbit: how did your interview go?");
+  const saved = at("2026-03-07", { debriefs: [{ id: "d", at: "2026-03-05", date: "2026-03-04", company: "Amazon", outcome: "waiting", came: [], hard: [], note: "" }] });
+  assert.notStrictEqual(saved && saved.kind, "debrief", "a saved debrief stops the ask");
+});
+
 test("sample reminder", () => {
   const r = buildReminder(state({ streak: 4, misses: { [TAG.id]: miss("2026-03-02", "2026-03-04") } }), ctx, "2026-03-05");
   const { text } = compose(r, "https://drillbit.test", "https://drillbit.test/api/unsubscribe?u=u1&t=TOKEN");

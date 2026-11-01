@@ -12,6 +12,7 @@ function contentFor(paid) {
 
 const COUNTDOWN = [14, 7, 3, 1];      // days before the interview that always get a message
 const WINBACK = [3, 7, 14, 30];       // days away that get a come-back message; other inactive days get nothing
+const DEBRIEF = [1, 3];               // days after the interview that ask for a debrief, until one is saved
 
 // Last day with any practice: a finished session, an answered question or a logged attempt.
 function lastActive(state) {
@@ -36,8 +37,16 @@ function buildReminder(progress, ctx, localDate, allowedPatterns = null) {
   const active = lastActive(state);
   const away = active ? CORE.diffDays(localDate, active) : 0;
   const countdown = sch.daysLeft !== null && COUNTDOWN.includes(sch.daysLeft);
-  const kind = countdown ? "countdown" : away >= WINBACK[0] ? (WINBACK.includes(away) ? "winback" : null) : "daily";
+  const debrief = CORE.debriefDue(state, localDate) && DEBRIEF.includes(-sch.daysLeft);
+  const kind = countdown ? "countdown" : debrief ? "debrief" : away >= WINBACK[0] ? (WINBACK.includes(away) ? "winback" : null) : "daily";
   if (!kind) return null;
+  if (kind === "debrief") {
+    return {
+      kind,
+      subject: `Drillbit: how did ${company ? "the " + company : "your"} interview go?`,
+      lines: [`How did ${company ? "the " + company : "your"} interview go? Two minutes while it's fresh: tell us what came up and what felt shaky, and your plan puts those first.`, "If there's a next round, add its date and the countdown starts again."]
+    };
+  }
 
   const lines = [];
   const interview = `${company ? company + " interview" : "Interview"} in ${sch.daysLeft} day${sch.daysLeft === 1 ? "" : "s"}`;
