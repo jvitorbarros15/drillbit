@@ -535,7 +535,7 @@
   }
 
   function shareText(sum) {
-    const lines = [`My Algostead readiness, ${sum.date}: ${sum.ready.length} of ${sum.total} patterns proven.`];
+    const lines = [`My Drillbit readiness, ${sum.date}: ${sum.ready.length} of ${sum.total} patterns proven.`];
     if (sum.ready.length) lines.push(`Proven (a problem solved first, then a new one solved alone on a later day): ${sum.ready.map(r => r.name).join(", ")}.`);
     if (sum.due.length) lines.push(`Due for a recheck: ${sum.due.join(", ")}.`);
     if (sum.practicing) lines.push(`Practicing ${sum.practicing} more.`);
