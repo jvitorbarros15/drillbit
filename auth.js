@@ -150,6 +150,8 @@
       return { ok: true };
     }),
     signOut: () => guard(async () => {
+      clearTimeout(timer);
+      pending = null;
       try { if (user) await dropDevice(); } catch (e) { /* signing out must still work */ }
       check(await client.auth.signOut());
       user = null; syncedFor = null; lastQueue = "";
@@ -160,10 +162,11 @@
       if (!user) return;
       pending = state;
       clearTimeout(timer);
+      const uid = user.id;
       timer = setTimeout(() => {
         const s = pending;
         pending = null;
-        if (s) guard(() => pushNow(s));
+        if (s && user && user.id === uid) guard(() => pushNow(s));
       }, PUSH_DELAY);
     },
     loadReminder: () => guard(async () => {
