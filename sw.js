@@ -1,4 +1,3 @@
-// Service worker for reminder notifications only. It doesn't cache anything.
 self.addEventListener("push", e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { body: e.data ? e.data.text() : "" }; }
