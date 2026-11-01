@@ -69,6 +69,15 @@
       interview_date: (state.profile && state.profile.interviewDate) || null
     }).eq("id", user.id));
   }
+  // another device may have written since this one last synced, so merge before overwriting the server copy
+  async function pushMerged(state) {
+    const remote = await pullRaw();
+    if (!remote || !hooks || !hooks.ctx) return pushNow(state);
+    const merged = Object.assign({}, window.CORE.mergeProgress(state, remote, hooks.ctx()), { owner: user.id });
+    const mine = new Set((state.events || []).map(e => e.id));
+    if (merged.events.some(e => e.id && !mine.has(e.id)) && hooks.get() === state) hooks.set(merged);
+    await pushNow(merged);
+  }
   async function queueNow(misses) {
     const q = window.CORE.queueRows(misses);
     const key = JSON.stringify(q);
@@ -170,7 +179,7 @@
       timer = setTimeout(() => {
         const s = pending;
         pending = null;
-        if (s && user && user.id === uid) guard(() => pushNow(s));
+        if (s && user && user.id === uid) guard(() => pushMerged(s));
       }, PUSH_DELAY);
     },
     loadReminder: () => guard(async () => {

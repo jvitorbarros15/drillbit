@@ -372,3 +372,20 @@ test("disablePush keeps push on for the account while another device is subscrib
   await u.AUTH.disablePush();
   assert.ok(ops(u.calls, "update").some(c => c.table === "profiles" && c.args[0].push_enabled === false), "last device off turns push off");
 });
+
+test("a delayed save merges attempts another device wrote to the server first", async () => {
+  const lessonCtx = { patterns: [], guides: [], lessons: [{ id: "q1", track: "sd", topic: "x", type: "mcq" }, { id: "q2", track: "sd", topic: "x", type: "mcq" }] };
+  const remote = json(CORE.blankState());
+  const t = setup({ config: CFG, remote, ctx: lessonCtx });
+  await t.signIn();
+  CORE.recordAttempt(remote, lessonCtx, "2026-03-10", { lessonId: "q1", correct: true, id: "other-device", ts: "2026-03-10T09:00:00Z" });
+  const local = CORE.recordAttempt(json(t.getState()), lessonCtx, "2026-03-10", { lessonId: "q2", correct: true, id: "this-device", ts: "2026-03-10T10:00:00Z" });
+  const before = ops(t.calls, "update").length;
+  await t.AUTH.push(local);
+  mock.timers.tick(2000);
+  await flush();
+  const ups = ops(t.calls, "update");
+  assert.strictEqual(ups.length, before + 1);
+  const ids = ups[ups.length - 1].args[0].progress.events.map(e => e.id).sort();
+  assert.deepStrictEqual(ids, ["other-device", "this-device"], "neither device's attempt is lost");
+});
