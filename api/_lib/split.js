@@ -2,8 +2,7 @@ const CORE = require("../../core.js");
 
 const FREE_PATTERNS = ["hashing", "two-pointers"];
 
-// For every paid pattern the diagnostic tests, one recognition item and one coding problem are free, so a
-// free user can repair their weakest result and try a different problem before paying.
+// one free recognition item and coding problem per diagnosed paid pattern, for the free repair
 function samplesFor(ctx, diag) {
   const out = {};
   const byLevel = (a, b) => a.level - b.level || (a.id < b.id ? -1 : 1);

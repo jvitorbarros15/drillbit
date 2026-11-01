@@ -1,6 +1,4 @@
-// Interview profiles built only from what each company publishes about its own process.
-// Every fact points at a source in the same profile. focus lists patterns the company names itself,
-// it is never a guess about which questions get asked. Re-check sources when updating `checked`.
+// facts come only from each company's own pages; focus lists patterns the company names, never guesses
 const COMPANIES = [
   {
     id: "google", name: "Google", checked: "2026-10-30",
