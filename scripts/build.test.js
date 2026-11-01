@@ -31,7 +31,7 @@ test("build output has the free bundle and none of the paid text", () => {
   for (const g of S.paidGuides) assert.ok(!text.includes(JSON.stringify(g.body)), g.id + " body");
   assert.ok(!fs.existsSync(path.join(out, "data.js")));
   assert.ok(!fs.existsSync(path.join(out, "guides.js")));
-  for (const f of ["index.html", "styles.css", "learn.css", "viz.js", "anim.js", "trace.js", "patterns.js", "companies.js", "core.js", "auth.js", "analytics.js", "app.js", "terms.html", "privacy.html", "refund.html", "sw.js"]) assert.ok(fs.existsSync(path.join(out, f)), f);
+  for (const f of ["index.html", "styles.css", "learn.css", "viz.js", "anim.js", "trace.js", "patterns.js", "companies.js", "core.js", "auth.js", "analytics.js", "app.js", "terms.html", "privacy.html", "refund.html", "sw.js", "favicon.svg", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "manifest.webmanifest"]) assert.ok(fs.existsSync(path.join(out, f)), f);
 });
 
 test("every free and diagnostic lesson is present", () => {
@@ -146,6 +146,17 @@ test("the legal pages are built and use the stylesheet", () => {
     const html = fs.readFileSync(path.join(out, f), "utf8");
     assert.ok(html.includes('href="styles.css"') && html.includes("jvitorbarros15@gmail.com"), f);
   }
+});
+
+test("the app manifest is valid and every icon it lists is built", () => {
+  const out = tmp();
+  build(out, {});
+  const m = JSON.parse(fs.readFileSync(path.join(out, "manifest.webmanifest"), "utf8"));
+  assert.strictEqual(m.display, "standalone");
+  assert.ok(m.icons.some(i => i.sizes === "512x512" && i.purpose === "maskable"));
+  for (const i of m.icons) assert.ok(fs.existsSync(path.join(out, i.src)), i.src);
+  const html = fs.readFileSync(path.join(out, "index.html"), "utf8");
+  for (const ref of ["manifest.webmanifest", "apple-touch-icon.png", "favicon.svg"]) assert.ok(html.includes(ref), ref);
 });
 
 test("build refuses to wipe the repo root", () => {
