@@ -69,12 +69,8 @@ function buildDeps(env = process.env) {
       if (error) throw error;
     },
     async access(userId) {
-      const active = !!(await rpc("has_access", { p_user: userId }));
-      if (!active) return { active: false, expiresAt: null };
-      const { data, error } = await sb.from("entitlements").select("expires_at").eq("user_id", userId)
-        .is("revoked_at", null).gt("expires_at", new Date().toISOString()).order("expires_at", { ascending: false }).limit(1);
-      if (error) throw error;
-      return { active: true, expiresAt: data && data[0] ? data[0].expires_at : null };
+      const until = await rpc("access_until", { p_user: userId });
+      return until ? { active: true, expiresAt: until } : { active: false, expiresAt: null };
     }
   };
   return {
