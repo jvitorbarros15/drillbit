@@ -87,8 +87,7 @@
     lastQueue = key;
   }
 
-  // Local progress owned by another account is never merged into this one. It is stashed on the device
-  // and comes back if that account signs in here again.
+  // another account's local progress is stashed on the device, never merged, and returns if it signs in here
   function sync() {
     failed = false;
     return guard(async () => {
@@ -164,7 +163,7 @@
       const last = pending;
       pending = null;
       // send a save still waiting on the delay before the session goes away
-      try { if (last && user) await pushNow(last); } catch (e) { /* signing out must still work */ }
+      try { if (last && user) await pushMerged(last); } catch (e) { /* signing out must still work */ }
       try { if (user) await dropDevice(); } catch (e) { /* signing out must still work */ }
       check(await client.auth.signOut());
       user = null; syncedFor = null; lastQueue = "";
