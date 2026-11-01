@@ -360,7 +360,7 @@
           <h3>${esc(co.name)}</h3>
           <p class="muted small">${c ? esc(c.summary) : "No company profile, so your plan stays balanced."}</p>
         </div>
-        <div class="hero-cta"><button class="btn ghost" data-act="interview">What to expect</button></div>
+        <div class="hero-cta"><button class="btn ghost" data-act="interview">What to expect</button><button class="btn ghost" data-act="mock">Mock interview</button></div>
       </section>`;
   }
 
@@ -651,6 +651,14 @@
         <h1>Pick a level.</h1>
         <p class="muted">Clear ${Math.round(UNLOCK * 100)}% of a level to unlock the next one, separately for each track. Topic drills are at the end of each guide.</p>
       </section>
+      <section class="panel study algo">
+        <div>
+          <p class="eyebrow">Mock interview</p>
+          <h3>Two problems, ${CORE.MOCK_MINUTES} minutes, no hints.</h3>
+          <p class="muted small">Plan each one out loud, code it, then take the follow-ups. Problems you haven't seen come first, from two different patterns.</p>
+        </div>
+        <div class="hero-cta"><button class="btn primary" data-act="mock">Start the clock</button></div>
+      </section>
       <div class="tracks">
         ${trackPanel("algo")}
         ${trackPanel("sd")}
@@ -928,6 +936,32 @@
     renderRun();
   }
 
+  function startMock() {
+    const ids = CORE.pickMock(S, ctx, Math.random);
+    if (ids.length < 2) { toast("A mock needs coding problems from two patterns."); return; }
+    clearHash();
+    run = {
+      mode: "mock", label: "Mock interview", idx: 0, results: [], deadline: Date.now() + CORE.MOCK_MINUTES * 60000,
+      entries: ids.map(id => ({ kind: "exercise", lessonId: id, independent: true, mock: true }))
+    };
+    ANALYTICS.track("mock_started", { lessons: ids });
+    renderRun();
+    if (!timer) timer = setInterval(tick, 1000);
+  }
+
+  let timer = null;
+  const clock = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+  function tick() {
+    if (!run || !run.deadline) { clearInterval(timer); timer = null; return; }
+    const left = run.deadline - Date.now();
+    const el = $("#timer");
+    if (el) { el.textContent = clock(left); el.classList.toggle("low", left < 5 * 60000); }
+    if (left <= 0 && cur && cur.item && !cur.answered) {
+      cur.timedOut = true;
+      finish(false, "Time's up. In a real interview, say where you got stuck and what you'd try next.");
+    }
+  }
+
   function startLevel(track, level) {
     const pool = LESSONS.filter(l => l.track === track && l.level === level);
     const fresh = shuffle(pool.filter(l => !cleared(l.id)));
@@ -947,7 +981,7 @@
     const top = `
         <div class="run-top">
           <button class="btn ghost small" data-act="quit">Quit</button>
-          <div class="run-label">${esc(run.label)}</div>
+          <div class="run-label">${esc(run.label)}${run.deadline ? ` <span class="timer" id="timer">${clock(run.deadline - Date.now())}</span>` : ""}</div>
           <div class="dots">${dots}</div>
         </div>`;
     if (entry.kind === "concept") { renderConcept(entry, top); return; }
@@ -969,7 +1003,8 @@
             ${S.items[item.id] && S.items[item.id].wrong && !S.items[item.id].correct ? `<span class="tag redo">Review</span>` : ""}
           </div>
           ${entry.kind === "review" && MISC[entry.tag] ? `<div class="notice ice">Bringing back: ${esc(MISC[entry.tag].label)}</div>` : ""}
-          ${entry.independent ? `<div class="notice good">Independent check: no hints. ${planFirst ? "A correct plan plus a pass on the first run" : "Passing on the first run"} counts as evidence for this pattern.</div>` : ""}
+          ${entry.mock ? `<div class="notice ice">Problem ${run.idx + 1} of ${run.entries.length}. No hints, and the clock keeps running. Plan it, code it, then take the follow-ups.</div>` : ""}
+          ${entry.independent && !entry.mock ? `<div class="notice good">Independent check: no hints. ${planFirst ? "A correct plan plus a pass on the first run" : "Passing on the first run"} counts as evidence for this pattern.</div>` : ""}
           <h2>${esc(item.title)}</h2>
           <p class="prompt">${rich(item.prompt)}</p>
           <div id="body"></div>
@@ -1272,7 +1307,9 @@
       if (was !== "ready" && status() === "ready") ANALYTICS.track("pattern_mastered", { pattern: pid, evidence: S.patterns[pid].check.kind });
       AUTH.logAttempt(attemptRow(a));
     }
-    run.results.push({ correct });
+    run.results.push(run.mode === "mock"
+      ? { correct, planned: cur.planned, failedRuns: cur.failedRuns, revealed: cur.revealed, timedOut: !!cur.timedOut, durationMs }
+      : { correct });
     save();
     renderChips();
     renderFeedback();
@@ -1344,6 +1381,12 @@
   }
 
   function advance() {
+    if (run.mode === "mock" && Date.now() >= run.deadline) {
+      while (run.results.length < run.entries.length) run.results.push({ correct: null });
+      run.idx = run.entries.length;
+      completeRun();
+      return;
+    }
     run.idx++;
     if (run.idx >= run.entries.length) completeRun();
     else { renderRun(); window.scrollTo({ top: 0, behavior: "smooth" }); }
@@ -1357,6 +1400,7 @@
 
   function completeRun() {
     const t = today();
+    if (run.mode === "mock") { renderMockSummary(); return; }
     if (run.mode === "repair") {
       S.repair.done = true;
       save();
@@ -1385,6 +1429,50 @@
       ANALYTICS.track("session_completed", { correct: run.results.filter(r => r.correct).length, phase: CORE.schedule(S, sctx, t).phase });
     }
     renderSummary(streakUp, freezeEarned);
+  }
+
+  function mockLine(r) {
+    if (r.correct === null) return "Not reached";
+    if (r.timedOut) return "Ran out of time";
+    if (r.revealed) return "Opened the solution";
+    if (!r.correct) return "Not solved";
+    const notes = [];
+    if (r.planned === false) notes.push("plan missed or skipped");
+    if (r.failedRuns) notes.push(`${r.failedRuns} failing run${r.failedRuns > 1 ? "s" : ""}`);
+    return notes.length ? `Solved, with ${notes.join(" and ")}` : "Solved alone: right plan, passed on the first run";
+  }
+
+  function renderMockSummary() {
+    renderChips();
+    const n = run.entries.length;
+    const solved = run.results.filter(r => r.correct).length;
+    const clean = run.results.filter(r => r.correct && r.planned !== false && !r.failedRuns).length;
+    const used = Math.min(Date.now(), run.deadline) - (run.deadline - CORE.MOCK_MINUTES * 60000);
+    const tips = [];
+    if (run.results.some(r => r.planned === false)) tips.push("Your plan was off on at least one problem. Interviewers listen for the approach and its cost before you code, so practice saying them first.");
+    if (run.results.some(r => r.failedRuns)) tips.push("Failing runs are fine in practice, but in an interview, walk through a small example by hand before you run anything.");
+    if (run.results.some(r => r.timedOut || r.correct === null)) tips.push("You ran out of time. Aim to have a working brute force in the first 15 minutes, then improve it.");
+    if (!tips.length) tips.push("Clean run. Clean solves count as evidence on your readiness map, so this may have moved a pattern toward Ready.");
+    ANALYTICS.track("mock_completed", { solved, clean, total: n });
+    app.innerHTML = `
+      <section class="summary">
+        <p class="eyebrow">Mock interview complete</p>
+        <h1>${solved === n ? "Both solved." : solved ? `${solved} of ${n} solved.` : "Not this time."}</h1>
+        <div class="sum-grid">
+          <div class="sum-stat"><b>${clean}/${n}</b><span>solved alone</span></div>
+          <div class="sum-stat"><b>${clock(used)}</b><span>of ${CORE.MOCK_MINUTES}:00 used</span></div>
+        </div>
+        <div class="panel"><ol class="sess-list">${run.entries.map((e, i) => {
+          const l = BY_ID[e.lessonId], r = run.results[i] || { correct: null }, p = PAT_BY_ID[CORE.patternOf(l, ctx)];
+          return `<li class="sess-row done"><span class="tag">${esc(p ? p.name : l.topic)}</span><span class="sess-title">${esc(l.title)}</span><span class="muted small">${mockLine(r)}${r.durationMs ? `, ${clock(r.durationMs)}` : ""}</span></li>`;
+        }).join("")}</ol></div>
+        <div class="panel">${tips.map(t => `<p class="muted">${t}</p>`).join("")}</div>
+        <div class="hero-cta center">
+          <button class="btn primary big" data-act="mock">Another mock</button>
+          <button class="btn ghost" data-act="home">Back to base</button>
+        </div>
+      </section>`;
+    run = null; cur = null;
   }
 
   function renderDiagResults() {
@@ -1487,6 +1575,7 @@
       case "quit": go(""); break;
       case "learn": go("#learn"); break;
       case "practice-nav": go("#practice"); break;
+      case "mock": startMock(); window.scrollTo(0, 0); break;
       case "guide": go("#learn/" + el.dataset.id); break;
       case "jump": { const t = document.getElementById(el.dataset.to); if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); break; }
       case "drill": startDrill(GUIDE_BY_ID[el.dataset.id]); window.scrollTo(0, 0); break;
