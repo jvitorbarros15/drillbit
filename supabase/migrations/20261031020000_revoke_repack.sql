@@ -13,6 +13,7 @@ as $$
 declare
   v_start timestamptz;
 begin
+  perform pg_advisory_xact_lock(hashtextextended(p_payment_intent, 1));
   perform pg_advisory_xact_lock(hashtextextended(p_user::text, 0));
   if exists (select 1 from public.entitlements where stripe_session_id = p_session) then
     return;
@@ -40,6 +41,8 @@ begin
   for v_user in select distinct user_id from public.entitlements where stripe_payment_intent = p_payment_intent order by user_id loop
     perform pg_advisory_xact_lock(hashtextextended(v_user::text, 0));
   end loop;
+  -- same lock as grant_entitlement, so a grant still in flight commits before this runs
+  perform pg_advisory_xact_lock(hashtextextended(p_payment_intent, 1));
   insert into public.revoked_payments (stripe_payment_intent) values (p_payment_intent) on conflict do nothing;
   update public.entitlements set revoked_at = now()
   where stripe_payment_intent = p_payment_intent and revoked_at is null;
