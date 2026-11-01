@@ -33,6 +33,7 @@ const fakeDb = (over = {}) => {
     userFromToken: async jwt => (jwt === "good" ? { id: "u1", email: "u1@x.test" } : null),
     grant: async (...a) => { calls.grant.push(a); },
     revoke: async pi => { calls.revoke.push(pi); return 1; },
+    userForPayment: async pi => (pi === "pi_9" ? "u9" : null),
     access: async () => ({ active: true, expiresAt: "2026-12-01T00:00:00Z" }),
     ...over
   };
@@ -154,7 +155,9 @@ test("webhook: a full refund and a dispute send the refund event", async () => {
   const partial = await send("charge.refunded", { id: "ch_1", refunded: false, payment_intent: "pi_1" });
   assert.strictEqual(partial.analytics.calls.length, 0);
   const dispute = await send("charge.dispute.created", { id: "dp_1", payment_intent: "pi_9" });
-  assert.deepStrictEqual(dispute.analytics.calls, [["refund", "pi_9", { kind: "dispute" }]]);
+  assert.deepStrictEqual(dispute.analytics.calls, [["refund", "u9", { kind: "dispute" }]], "a dispute is attributed to the buyer");
+  const unknown = await send("charge.dispute.created", { id: "dp_2", payment_intent: "pi_x" });
+  assert.deepStrictEqual(unknown.analytics.calls, [["refund", "pi_x", { kind: "dispute" }]]);
 });
 
 test("webhook: a grant sends purchase_completed_server for the user", async () => {
