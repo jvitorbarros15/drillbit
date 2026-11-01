@@ -1096,8 +1096,8 @@
     const top = `
         <div class="run-top">
           <button class="btn ghost small" data-act="quit">Quit</button>
-          <div class="run-label">${esc(run.label)}${run.deadline ? ` <span class="timer" id="timer">${clock(run.deadline - Date.now())}</span>` : ""}</div>
-          <div class="dots">${dots}</div>
+          <div class="run-label">${esc(run.label)}</div>
+          <div class="dots">${run.deadline ? `<span class="timer" id="timer">${clock(run.deadline - Date.now())}</span>` : ""}${dots}</div>
         </div>`;
     if (entry.kind === "concept") { renderConcept(entry, top); return; }
 
@@ -1164,7 +1164,7 @@
           const c = item.plan[k];
           return `<div class="plan-q">
             <p class="plan-label">${esc(label || item.plan.q || "Which approach would you pitch?")}</p>
-            <div class="opts plan-opts">${order(item.id + k, c.options.length).map(i => `<button class="opt" data-act="plan-pick" data-k="${k}" data-i="${i}"><span>${rich(c.options[i])}</span></button>`).join("")}</div>
+            <div class="opts plan-opts ${c.options.every(o => o.length <= 14) ? "short" : ""}">${order(item.id + k, c.options.length).map(i => `<button class="opt" data-act="plan-pick" data-k="${k}" data-i="${i}"><span>${rich(c.options[i])}</span></button>`).join("")}</div>
           </div>`;
         }).join("")}
         <div class="code-actions" id="plan-actions">
