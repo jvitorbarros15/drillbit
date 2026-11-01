@@ -147,8 +147,12 @@ select.viz-input { width: auto; }
 .ring-bar b { text-align: right; }
 
 @media (max-width: 600px) {
-  .nav-left { gap: 10px; }
-  .logo-wordmark { display: none; }
+  /* logo and name on the first row with the chips, nav on its own row below */
+  .topbar { flex-wrap: wrap; row-gap: 8px; }
+  .nav-left { display: contents; }
+  .logo { order: 1; }
+  .chips { order: 2; }
+  .nav { order: 3; flex-basis: 100%; }
   .nav-btn { padding: 4px 8px; }
   .est-grid { grid-template-columns: 1fr 1fr; }
   .ring-wrap { grid-template-columns: 1fr; }
