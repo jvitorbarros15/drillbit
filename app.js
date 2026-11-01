@@ -824,7 +824,8 @@
   async function refreshAccess() {
     if (!META || !AUTH.enabled) return false;
     const a = await AUTH.access();
-    if (a && !a.active && access && access.active) { access = a; indexContent(); renderChips(); }
+    // paid lessons were merged into the bank, so a lapsed pass reloads to drop them
+    if (a && !a.active && access && access.active) { location.reload(); return false; }
     if (!a || !a.active) return false;
     if (gated()) {
       const c = await AUTH.content();

@@ -156,7 +156,7 @@ test("sample reminder", () => {
 
 const NOW = new Date("2026-03-05T14:30:00Z");
 const row = (id, over = {}) => ({ id, progress: state({ streak: 2 }), reminder_hour: 9, timezone: "America/New_York", last_reminder_on: null, reminders_enabled: true, push_enabled: false, ...over });
-const harness = (rows, { fail = [], paid = [], subs = {}, gone = [], pushFail = [], accessFail = [], subsFail = [], taken = [] } = {}) => {
+const harness = (rows, { fail = [], paid = [], subs = {}, gone = [], pushFail = [], accessFail = [], subsFail = [], taken = [], mockPush = [] } = {}) => {
   const sent = [], marked = [], pushed = [], deleted = [], loaded = [];
   const deps = {
     db: {
@@ -173,6 +173,7 @@ const harness = (rows, { fail = [], paid = [], subs = {}, gone = [], pushFail = 
     sendPush: async (sub, payload) => {
       if (pushFail.includes(sub.endpoint)) throw new Error("push down");
       if (gone.includes(sub.endpoint)) return { gone: true };
+      if (mockPush.includes(sub.endpoint)) return { mocked: true };
       pushed.push([sub.endpoint, payload]);
       return { mocked: false };
     },
@@ -333,6 +334,12 @@ test("cron: a failed push lookup after the email still marks the day", async () 
   const h = harness([row("u1", { push_enabled: true })], { subsFail: ["u1"] });
   await h.run();
   assert.deepStrictEqual([h.sent.length, h.marked.map(m => m[0])], [1, ["u1"]]);
+});
+
+test("cron: null progress still gets a reminder, and a mocked push doesn't count as sent", async () => {
+  const h = harness([row("fresh", { progress: null }), row("mock", { reminders_enabled: false, push_enabled: true })], { subs: { mock: [{ endpoint: "mocked" }] }, mockPush: ["mocked"] });
+  await h.run();
+  assert.deepStrictEqual([h.sent.map(m => m.to), h.marked.map(m => m[0])], [["fresh@x.test"], ["fresh"]]);
 });
 
 test("cron: a day another run already claimed isn't sent again", async () => {

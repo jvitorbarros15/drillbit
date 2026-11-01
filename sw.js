@@ -14,6 +14,6 @@ self.addEventListener("notificationclick", e => {
   if (url.origin !== self.location.origin) url = new URL("/", self.location.origin);
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
     const open = list.find(c => c.url.startsWith(self.location.origin));
-    return open ? open.focus() : self.clients.openWindow(url.href);
+    return open ? open.navigate(url.href).then(c => (c || open).focus()) : self.clients.openWindow(url.href);
   }));
 });
