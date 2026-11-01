@@ -478,12 +478,32 @@
     return { upsert, remove };
   }
 
+  // A mock interview: n coding problems from different patterns, unseen ones first, interview-sized (L2 to L4) before
+  // the rest, least recently seen breaking ties. Returns fewer when there aren't enough patterns.
+  const MOCK_MINUTES = 45;
+  function pickMock(state, ctx, rng, n = 2) {
+    const last = l => (state.items[l.id] && state.items[l.id].last) || "";
+    const key = l => [seen(state, l.id) ? 1 : 0, l.level >= 2 && l.level <= 4 ? 0 : 1, last(l)];
+    const cmp = (a, b) => { const x = key(a), y = key(b); for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1; return 0; };
+    const pool = ctx.lessons.filter(l => l.type === "code" && patternOf(l, ctx))
+      .map(l => [l, rng()]).sort((a, b) => cmp(a[0], b[0]) || a[1] - b[1]).map(([l]) => l);
+    const out = [], used = new Set();
+    for (const l of pool) {
+      const pid = patternOf(l, ctx);
+      if (used.has(pid)) continue;
+      used.add(pid); out.push(l.id);
+      if (out.length === n) break;
+    }
+    return out;
+  }
+
   const sessionsDone = state => Object.values(state.days).filter(d => d && d.done).length;
   const patternLocked = (meta, pid) => !!meta && meta.lockedPatterns.includes(pid);
 
   const CORE = {
     fmt, parse, addDays, diffDays, seededRng, blankState, migrate, patternOf, inferMiss, recordAttempt,
-    dueTags, pickReview, readiness, schedule, companyOf, buildDiagnostic, recordDiagnostic, composeSession, mergeProgress, queueRows, sessionsDone, patternLocked, STALE_DAYS
+    dueTags, pickReview, readiness, schedule, companyOf, buildDiagnostic, recordDiagnostic, composeSession, mergeProgress, queueRows, sessionsDone, patternLocked, STALE_DAYS,
+    pickMock, MOCK_MINUTES
   };
   if (typeof module !== "undefined") module.exports = CORE;
   else window.CORE = CORE;

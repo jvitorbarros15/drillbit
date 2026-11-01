@@ -35,6 +35,24 @@ const prove = (s, pid, ids, at = T) => {
 };
 const ready = s => prove(prove(s, "pb", ["qb1", "cb1"]), "pc", ["qc1", "qc2"]);
 
+test("pickMock takes unseen interview-sized problems from different patterns", () => {
+  const rng = () => 0.5;
+  const s = st();
+  const ids = C.pickMock(s, ctx, rng);
+  assert.strictEqual(ids.length, 2);
+  const pats = ids.map(id => C.patternOf(L(id), ctx));
+  assert.notStrictEqual(pats[0], pats[1]);
+  assert.ok(ids.every(id => L(id).type === "code"));
+  assert.ok(ids.includes("cb1"), "the only code problem in pb");
+  assert.ok(ids.includes("ca2") || ids.includes("ca3"), "L2 to L4 before L1");
+  rec(s, { lessonId: "ca2", correct: true }, "2026-03-01");
+  rec(s, { lessonId: "ca3", correct: true }, "2026-03-02");
+  assert.ok(C.pickMock(s, ctx, rng).includes("ca1"), "unseen beats seen");
+  rec(s, { lessonId: "ca1", correct: true }, "2026-03-03");
+  assert.ok(C.pickMock(s, ctx, rng).includes("ca2"), "least recently seen among seen");
+  assert.deepStrictEqual(C.pickMock(s, { ...ctx, lessons: ctx.lessons.filter(l => l.id !== "cb1") }, rng).length, 1, "one pattern with code gives one problem");
+});
+
 test("dates and rng", () => {
   assert.strictEqual(C.addDays("2026-02-27", 3), "2026-03-02");
   assert.strictEqual(C.diffDays("2026-03-10", "2026-03-01"), 9);
