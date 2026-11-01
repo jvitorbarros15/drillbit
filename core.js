@@ -35,7 +35,7 @@
   // ---------- state ----------
   // legacy: counters predate the event log, so sync falls back to a field merge once.
   const blankState = () => ({
-    v: 3, profile: { interviewDate: null, language: "js", company: null }, diagnostic: null,
+    v: 3, profile: { interviewDate: null, language: "js", company: null, debriefs: [] }, diagnostic: null,
     items: {}, misses: {}, patterns: {}, streak: 0, best: 0, freezes: 0, lastDone: null, days: {}, drafts: {}, read: {},
     events: [], legacy: false, owner: null, repair: null
   });
@@ -55,6 +55,7 @@
     if (raw.v === 2 || raw.v === 3) {
       const s = Object.assign(b, raw, { v: 3, profile: Object.assign(b.profile, isObj(raw.profile) ? raw.profile : {}), drafts: drafts(raw.drafts) });
       if (!Array.isArray(s.events)) s.events = [];
+      if (!Array.isArray(s.profile.debriefs)) s.profile.debriefs = [];
       if (raw.v === 2) {
         s.legacy = true;
         // v2 marked a pattern mastered after one unaided answer, which is too little evidence to keep
@@ -259,6 +260,32 @@
     return (c && (ctx.companies || []).find(x => x.id === c.id)) || null;
   }
 
+  // Patterns to put first after weak spots: the company's published focus plus what came up in the latest debrief.
+  // Patterns the user found hard in that debrief rank above the rest.
+  function focusOf(state, ctx) {
+    const comp = companyOf(state, ctx);
+    const d = latestDebrief(state);
+    return { hard: new Set(d ? d.hard : []), focus: new Set([...(comp ? comp.focus : []), ...(d ? d.came.concat(d.hard) : [])]) };
+  }
+
+  const debriefsOf = state => (state.profile && Array.isArray(state.profile.debriefs) ? state.profile.debriefs : []);
+  const latestDebrief = state => debriefsOf(state).reduce((m, d) => (!m || d.at >= m.at ? d : m), null);
+
+  // Ask the day after the interview, and only once per date.
+  function debriefDue(state, today) {
+    const date = state.profile && state.profile.interviewDate;
+    return !!date && diffDays(date, today) < 0 && !debriefsOf(state).some(d => d.date === date);
+  }
+
+  // A debrief closes out the interview: the date moves to the next round when there is one, otherwise it clears.
+  function recordDebrief(state, today, { id, outcome, came = [], hard = [], note = "", next = null }) {
+    const p = state.profile;
+    if (!Array.isArray(p.debriefs)) p.debriefs = [];
+    p.debriefs.push({ id: id || `${today}-${p.interviewDate || "none"}`, at: today, date: p.interviewDate, company: p.company ? p.company.name : null, outcome, came, hard, note });
+    p.interviewDate = next && next > today ? next : null;
+    return state;
+  }
+
   function schedule(state, ctx, today) {
     const date = state.profile && state.profile.interviewDate;
     const daysLeft = date ? diffDays(date, today) : null;
@@ -266,9 +293,8 @@
     const open = readiness(state, ctx, today).filter(r => r.hasContent && r.status !== "ready");
     const res = (state.diagnostic && state.diagnostic.results) || {};
     const weak = r => res[r.id] && res[r.id].correct < res[r.id].total;
-    const comp = companyOf(state, ctx);
-    const focus = r => !!comp && comp.focus.includes(r.id);
-    const current = (open.find(weak) || open.find(focus) || open[0] || {}).id || null;
+    const f = focusOf(state, ctx);
+    const current = (open.find(weak) || open.find(r => f.hard.has(r.id)) || open.find(r => f.focus.has(r.id)) || open[0] || {}).id || null;
     return { daysLeft, phase, current, remaining: open.length };
   }
 
@@ -360,8 +386,8 @@
       if (r) add({ kind: "review", lessonId: r.lessonId, tag: r.tag });
     }
     const rank = { shaky: 0, learning: 1, new: 2 };
-    const comp = companyOf(state, ctx);
-    const focused = r => (comp && comp.focus.includes(r.id) ? 0 : 1);
+    const f = focusOf(state, ctx);
+    const focused = r => (f.hard.has(r.id) ? 0 : f.focus.has(r.id) ? 1 : 2);
     const order = open.slice().sort((a, b) => rank[a.status] - rank[b.status] || focused(a) - focused(b));
     for (let pass = 0; pass < 3 && out.length < 3; pass++)
       for (const r of order) {
@@ -451,9 +477,14 @@
     const ds = {};
     for (const id of new Set([...Object.keys(l.drafts), ...Object.keys(r.drafts)]))
       ds[id] = !r.drafts[id] ? l.drafts[id] : !l.drafts[id] ? r.drafts[id] : l.drafts[id].ts > r.drafts[id].ts ? l.drafts[id] : r.drafts[id];
+    // the side that recorded the newest debrief has the current interview date; debriefs from both sides are kept
+    const lastAt = s => debriefsOf(s).reduce((m, d) => (d.at > m ? d.at : m), "");
+    const profile = lastAt(l) > lastAt(r) ? { ...l.profile } : lastAt(r) > lastAt(l) || r.profile.interviewDate ? { ...r.profile } : { ...l.profile };
+    const byId = new Map([...debriefsOf(l), ...debriefsOf(r)].map(d => [d.id, d]));
+    profile.debriefs = [...byId.values()].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : a.id < b.id ? -1 : 1));
     return clone({
       v: 3,
-      profile: r.profile.interviewDate ? { ...r.profile } : { ...l.profile },
+      profile,
       diagnostic: diag,
       items: core.items, misses: core.misses, patterns: core.patterns,
       streak: live.streak, freezes: live.freezes, lastDone: live.lastDone,
@@ -503,7 +534,7 @@
   const CORE = {
     fmt, parse, addDays, diffDays, seededRng, blankState, migrate, patternOf, inferMiss, recordAttempt,
     dueTags, pickReview, readiness, schedule, companyOf, buildDiagnostic, recordDiagnostic, composeSession, mergeProgress, queueRows, sessionsDone, patternLocked, STALE_DAYS,
-    pickMock, MOCK_MINUTES
+    pickMock, MOCK_MINUTES, focusOf, debriefDue, recordDebrief
   };
   if (typeof module !== "undefined") module.exports = CORE;
   else window.CORE = CORE;

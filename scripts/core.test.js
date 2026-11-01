@@ -323,6 +323,42 @@ test("a chosen company's focus patterns come after weak spots", () => {
   assert.strictEqual(C.schedule(s, ctx, T).current, "pb", "no companies in ctx is fine");
 });
 
+test("debriefs: due once per date, move to the next round, and set focus", () => {
+  const c = { ...ctx, companies: [{ id: "acme", name: "Acme", focus: ["pc"] }] };
+  const s = st();
+  assert.strictEqual(C.debriefDue(s, T), false, "no date, nothing to debrief");
+  s.profile.interviewDate = "2026-03-12";
+  s.profile.company = { id: "acme", name: "Acme" };
+  assert.strictEqual(C.debriefDue(s, T), false, "interview still ahead");
+  s.profile.interviewDate = T;
+  assert.strictEqual(C.debriefDue(s, T), false, "not on the day itself");
+  assert.strictEqual(C.debriefDue(s, "2026-03-11"), true, "due the day after");
+  C.recordDebrief(s, T, { id: "d1", outcome: "next-round", came: ["pb"], hard: ["pd"], note: "n", next: "2026-03-20" });
+  assert.deepStrictEqual(s.profile.debriefs, [{ id: "d1", at: T, date: T, company: "Acme", outcome: "next-round", came: ["pb"], hard: ["pd"], note: "n" }]);
+  assert.strictEqual(s.profile.interviewDate, "2026-03-20");
+  assert.strictEqual(C.debriefDue(s, "2026-03-21"), true, "the next round gets its own debrief");
+  const f = C.focusOf(s, c);
+  assert.deepStrictEqual([[...f.hard], [...f.focus].sort()], [["pd"], ["pb", "pc", "pd"]]);
+  assert.strictEqual(C.schedule(s, ctx, T).current, "pb", "pd has no content, so what came up is next");
+  C.recordDebrief(s, "2026-03-21", { id: "d2", outcome: "waiting", came: ["pc"], hard: ["pb"] });
+  assert.strictEqual(C.schedule(s, c, "2026-03-21").current, "pb", "hard in the latest debrief comes first");
+  assert.strictEqual(s.profile.interviewDate, null, "no next round clears the date");
+  C.recordDebrief(s, T, { id: "d3", outcome: "no", next: "2026-03-01" });
+  assert.strictEqual(s.profile.interviewDate, null, "a next date in the past is ignored");
+});
+
+test("mergeProgress keeps debriefs from both sides and the newest debriefer's date", () => {
+  const l = st(), r = st();
+  l.profile.interviewDate = T; r.profile.interviewDate = T;
+  C.recordDebrief(l, T, { id: "a", outcome: "waiting" });
+  r.profile.debriefs.push({ id: "old", at: "2026-02-01", date: "2026-02-01", company: null, outcome: "no", came: [], hard: [], note: "" });
+  const out = C.mergeProgress(l, r);
+  assert.deepStrictEqual(out.profile.debriefs.map(d => d.id), ["old", "a"]);
+  assert.strictEqual(out.profile.interviewDate, null, "the local debrief closed the interview");
+  assert.strictEqual(C.mergeProgress(r, l).profile.interviewDate, null);
+  assert.deepStrictEqual(C.migrate({ v: 3, profile: { interviewDate: null } }).profile.debriefs, []);
+});
+
 test("composeSession in the learn phase falls back to recognition", () => {
   const s = st();
   const a = C.composeSession(s, ctx, T);
@@ -440,7 +476,7 @@ test("migrate from v1", () => {
     daily: { date: "2026-03-09" }, drafts: { ca1: "code" }, read: { big: 1 }
   };
   assert.deepStrictEqual(C.migrate(v1), {
-    v: 3, profile: { interviewDate: null, language: "js", company: null }, diagnostic: null,
+    v: 3, profile: { interviewDate: null, language: "js", company: null, debriefs: [] }, diagnostic: null,
     items: { qa1: { seen: 3, correct: 2, wrong: 1, last: "2026-03-09", hinted: false, clean: 0 } },
     misses: {}, patterns: {}, streak: 4, best: 9, freezes: 1, lastDone: "2026-03-09",
     days: { "2026-03-09": { answered: 5, correct: 4 }, "2026-03-08": { answered: 1, correct: 1, frozen: true } },
@@ -458,7 +494,7 @@ test("migrate from v2 drops one-answer mastery and marks the state legacy", () =
 test("migrate keeps v3 and rejects garbage", () => {
   const s = rec(st(), { lessonId: "qa1", correct: false, tag: "pa.m1" });
   assert.deepStrictEqual(C.migrate(JSON.parse(JSON.stringify(s))), s);
-  assert.deepStrictEqual(C.migrate({ v: 2, streak: 3 }).profile, { interviewDate: null, language: "js", company: null });
+  assert.deepStrictEqual(C.migrate({ v: 2, streak: 3 }).profile, { interviewDate: null, language: "js", company: null, debriefs: [] });
   for (const g of [null, undefined, 5, "x", [], {}, { v: 99 }, { v: 1.5 }]) assert.deepStrictEqual(C.migrate(g), C.blankState());
   const odd = C.migrate({ v: 1, streak: "x", items: { a: 5, b: { seen: "q" } }, days: [] });
   assert.deepStrictEqual([odd.streak, odd.items.a, odd.items.b.seen], [0, undefined, 0]);
