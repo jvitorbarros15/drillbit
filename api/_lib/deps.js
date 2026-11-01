@@ -26,10 +26,15 @@ function buildDeps(env = process.env) {
       return rpc("revoke_entitlement", { p_payment_intent: paymentIntent });
     },
     async reminderCandidates() {
-      const { data, error } = await sb.from("profiles").select("id, progress, reminder_hour, timezone, last_reminder_on, reminders_enabled, push_enabled")
+      const { data, error } = await sb.from("profiles").select("id, reminder_hour, timezone, last_reminder_on, reminders_enabled, push_enabled")
         .or("reminders_enabled.eq.true,push_enabled.eq.true").not("reminder_hour", "is", null);
       if (error) throw error;
       return data || [];
+    },
+    async progressOf(userId) {
+      const { data, error } = await sb.from("profiles").select("progress").eq("id", userId).maybeSingle();
+      if (error) throw error;
+      return data ? data.progress : null;
     },
     async emailOf(userId) {
       const { data, error } = await sb.auth.admin.getUserById(userId);

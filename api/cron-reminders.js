@@ -16,6 +16,8 @@ const localParts = (now, timeZone) => {
   return { date: `${get("year")}-${get("month")}-${get("day")}`, hour: Number(get("hour")) };
 };
 
+const BATCH = 5; // users handled at once, so one slow email or push call doesn't hold up the whole hour
+
 const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFor, now = () => new Date() }) => async (req, res) => {
   if (req.method !== "POST") { res.setHeader("Allow", "POST"); return send(res, 405, { error: "Method not allowed" }); }
   const given = bearer(req);
@@ -25,14 +27,21 @@ const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFo
   catch (e) { console.error("reminder query failed", e && e.message); return send(res, 500, { error: "Could not load reminders" }); }
   const base = String(config.appUrl || "").replace(/\/+$/, "");
   let sent = 0, skipped = 0;
+  // candidates carry no progress; it's loaded only for users whose local reminder hour is now
+  const due = [];
   for (const row of rows) {
     const { date, hour } = localParts(now(), row.timezone);
-    const day = row.progress && row.progress.days && row.progress.days[date];
-    if (hour !== row.reminder_hour || row.last_reminder_on === date || (day && day.done)) { skipped++; continue; }
+    if (hour !== row.reminder_hour || row.last_reminder_on === date) skipped++;
+    else due.push({ row, date });
+  }
+  const one = async ({ row, date }) => {
     try {
+      const progress = await db.progressOf(row.id);
+      const day = progress && progress.days && progress.days[date];
+      if (day && day.done) { skipped++; return; }
       const { active } = await db.access(row.id).catch(() => ({ active: false }));
-      const msg = buildReminder(row.progress, contentFor(active), date, active ? null : FREE_PATTERNS);
-      if (!msg) { skipped++; continue; }
+      const msg = buildReminder(progress, contentFor(active), date, active ? null : FREE_PATTERNS);
+      if (!msg) { skipped++; return; }
       let delivered = false;
       if (row.reminders_enabled !== false) {
         try {
@@ -58,14 +67,15 @@ const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFo
           } catch (e) { console.error("reminder push failed", row.id, e && e.message); }
         }
       }
-      if (!delivered) { skipped++; continue; }
+      if (!delivered) { skipped++; return; }
       await db.markReminded(row.id, date);
       sent++;
     } catch (e) {
       console.error("reminder failed", row.id, e && e.message);
       skipped++;
     }
-  }
+  };
+  for (let i = 0; i < due.length; i += BATCH) await Promise.all(due.slice(i, i + BATCH).map(one));
   return send(res, 200, { checked: rows.length, sent, skipped });
 };
 

@@ -157,10 +157,11 @@ test("sample reminder", () => {
 const NOW = new Date("2026-03-05T14:30:00Z");
 const row = (id, over = {}) => ({ id, progress: state({ streak: 2 }), reminder_hour: 9, timezone: "America/New_York", last_reminder_on: null, reminders_enabled: true, push_enabled: false, ...over });
 const harness = (rows, { fail = [], paid = [], subs = {}, gone = [], pushFail = [] } = {}) => {
-  const sent = [], marked = [], pushed = [], deleted = [];
+  const sent = [], marked = [], pushed = [], deleted = [], loaded = [];
   const deps = {
     db: {
-      reminderCandidates: async () => rows,
+      reminderCandidates: async () => rows.map(({ progress, ...r }) => r),
+      progressOf: async id => { loaded.push(id); return rows.find(r => r.id === id).progress; },
       emailOf: async id => id + "@x.test",
       markReminded: async (id, date) => marked.push([id, date]),
       access: async id => ({ active: paid.includes(id) }),
@@ -185,7 +186,7 @@ const harness = (rows, { fail = [], paid = [], subs = {}, gone = [], pushFail = 
     const res = await call(cron.create(deps), req);
     return { res, body: res.body ? JSON.parse(res.body) : null };
   };
-  return { run, sent, marked, pushed, deleted };
+  return { run, sent, marked, pushed, deleted, loaded };
 };
 
 test("cron: 401 without the secret or with a wrong one", async () => {
@@ -207,6 +208,7 @@ test("cron: sends only to users at their local hour and sets last_reminder_on", 
   assert.deepStrictEqual(h.sent.map(m => m.to).sort(), ["ny@x.test", "tokyo@x.test", "utc@x.test"]);
   assert.deepStrictEqual(h.marked.map(m => m[0]).sort(), ["ny", "tokyo", "utc"]);
   assert.deepStrictEqual(h.marked.find(m => m[0] === "tokyo"), ["tokyo", "2026-03-05"]);
+  assert.deepStrictEqual(h.loaded.sort(), ["ny", "tokyo", "utc"], "progress is loaded only for users due this hour");
 });
 
 test("cron: the message has the unsubscribe headers and links", async () => {
@@ -275,9 +277,9 @@ test("cron: push goes to every subscription, dead ones are deleted, and push alo
   const { body } = await h.run();
   assert.deepStrictEqual(body, { checked: 3, sent: 2, skipped: 1 });
   assert.deepStrictEqual(h.sent.map(m => m.to), ["both@x.test"]);
-  assert.deepStrictEqual(h.pushed.map(p => p[0]), ["p1", "p2", "p3"]);
+  assert.deepStrictEqual(h.pushed.map(p => p[0]).sort(), ["p1", "p2", "p3"]);
   assert.deepStrictEqual(h.deleted, ["p4"]);
-  assert.deepStrictEqual(h.marked.map(m => m[0]), ["both", "pushonly"]);
+  assert.deepStrictEqual(h.marked.map(m => m[0]).sort(), ["both", "pushonly"]);
   const p = h.pushed[0][1];
   assert.ok(p.title && !p.title.startsWith("Drillbit:") && p.url === "https://drillbit.test");
 });
