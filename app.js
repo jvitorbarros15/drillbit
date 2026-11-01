@@ -7,7 +7,7 @@
   let BY_ID, GUIDE_BY_ID, GUIDE_FOR, ctx, sctx;
   const META = window.CONTENT_META || null;
   const PASS_PRICE = "$29";
-  const FREE_SESSIONS = 3;
+  const FREE_SESSIONS = window.CORE.FREE_SESSIONS;
   const PATTERNS = window.PATTERNS;
   const COMPANIES = window.COMPANIES || [];
   const PAT_BY_ID = Object.fromEntries(PATTERNS.map(p => [p.id, p]));

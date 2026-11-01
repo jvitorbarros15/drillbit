@@ -1,12 +1,8 @@
-const crypto = require("node:crypto");
-const { bearer, send } = require("./_lib/http");
+const CORE = require("../core.js");
+const { bearer, send, same } = require("./_lib/http");
 const { buildReminder, compose } = require("./_lib/reminder");
 const { FREE_PATTERNS } = require("./_lib/split");
 
-const same = (a, b) => {
-  const x = Buffer.from(a), y = Buffer.from(b);
-  return x.length === y.length && crypto.timingSafeEqual(x, y);
-};
 
 const localParts = (now, timeZone) => {
   const parts = zone => new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(now);
@@ -36,12 +32,14 @@ const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFo
   }
   const one = async ({ row, date }) => {
     try {
-      const progress = await db.progressOf(row.id);
+      // a failed access check throws to the catch below rather than sending a free-tier message to a paying user
+      const [progress, { active }] = await Promise.all([db.progressOf(row.id), db.access(row.id)]);
       const day = progress && progress.days && progress.days[date];
       if (day && day.done) { skipped++; return; }
-      const { active } = await db.access(row.id).catch(() => ({ active: false }));
       const msg = buildReminder(progress, contentFor(active), date, active ? null : FREE_PATTERNS);
       if (!msg) { skipped++; return; }
+      // free sessions used up: no "today's session" nudges for a session the app won't start
+      if (!active && CORE.sessionsDone(progress || {}) >= CORE.FREE_SESSIONS && (msg.kind === "daily" || msg.kind === "winback")) { skipped++; return; }
       let delivered = false;
       if (row.reminders_enabled !== false) {
         try {
@@ -59,7 +57,8 @@ const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFo
       }
       if (row.push_enabled && sendPush) {
         const payload = { title: msg.subject.replace(/^Drillbit: /, ""), body: msg.lines[0] || "", url: base || "/" };
-        for (const sub of await db.pushSubscriptions(row.id)) {
+        const subs = await db.pushSubscriptions(row.id).catch(e => { console.error("push lookup failed", row.id, e && e.message); return []; });
+        for (const sub of subs) {
           try {
             const r = await sendPush(sub, payload);
             if (r && r.gone) await db.deletePushSubscription(sub.endpoint);

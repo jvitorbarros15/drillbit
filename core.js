@@ -337,9 +337,7 @@
       const list = lessonsOf(pid).filter(isRecog);
       return list.find(l => !solved(state, l.id)) || list[0];
     };
-    // The last unseen code lesson of a pattern is held back for the independent check, so ordinary
-    // practice never uses up every fresh problem. Once the bank is seen, a lesson never solved unaided
-    // and not tried for CHECK_GAP days can serve as a retry check.
+    // the last unseen code lesson is held back for the check, so practice never uses up every fresh problem
     const codeOf = pid => lessonsOf(pid).filter(l => l.type === "code");
     const reservedFor = pid => { const un = codeOf(pid).filter(l => !seen(state, l.id)); return un.length ? un[un.length - 1] : null; };
     const retryFor = pid => codeOf(pid).find(l => {
@@ -546,13 +544,14 @@
     return lines.join(" ");
   }
 
+  const FREE_SESSIONS = 3;
   const sessionsDone = state => Object.values(state.days).filter(d => d && d.done).length;
   const patternLocked = (meta, pid) => !!meta && meta.lockedPatterns.includes(pid);
 
   const CORE = {
     fmt, parse, addDays, diffDays, seededRng, blankState, migrate, patternOf, inferMiss, recordAttempt,
     dueTags, pickReview, readiness, schedule, companyOf, buildDiagnostic, recordDiagnostic, composeSession, mergeProgress, queueRows, sessionsDone, patternLocked, STALE_DAYS,
-    pickMock, MOCK_MINUTES, focusOf, debriefDue, recordDebrief, shareSummary, shareText
+    pickMock, MOCK_MINUTES, FREE_SESSIONS, focusOf, debriefDue, recordDebrief, shareSummary, shareText
   };
   if (typeof module !== "undefined") module.exports = CORE;
   else window.CORE = CORE;

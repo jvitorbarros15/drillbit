@@ -156,7 +156,7 @@ test("sample reminder", () => {
 
 const NOW = new Date("2026-03-05T14:30:00Z");
 const row = (id, over = {}) => ({ id, progress: state({ streak: 2 }), reminder_hour: 9, timezone: "America/New_York", last_reminder_on: null, reminders_enabled: true, push_enabled: false, ...over });
-const harness = (rows, { fail = [], paid = [], subs = {}, gone = [], pushFail = [] } = {}) => {
+const harness = (rows, { fail = [], paid = [], subs = {}, gone = [], pushFail = [], accessFail = [], subsFail = [] } = {}) => {
   const sent = [], marked = [], pushed = [], deleted = [], loaded = [];
   const deps = {
     db: {
@@ -164,8 +164,8 @@ const harness = (rows, { fail = [], paid = [], subs = {}, gone = [], pushFail = 
       progressOf: async id => { loaded.push(id); return rows.find(r => r.id === id).progress; },
       emailOf: async id => id + "@x.test",
       markReminded: async (id, date) => marked.push([id, date]),
-      access: async id => ({ active: paid.includes(id) }),
-      pushSubscriptions: async id => subs[id] || [],
+      access: async id => { if (accessFail.includes(id)) throw new Error("rpc timeout"); return { active: paid.includes(id) }; },
+      pushSubscriptions: async id => { if (subsFail.includes(id)) throw new Error("db down"); return subs[id] || []; },
       deletePushSubscription: async endpoint => deleted.push(endpoint)
     },
     sendEmail: async m => { if (fail.includes(m.to)) throw new Error("resend down"); sent.push(m); return { mocked: true }; },
@@ -308,4 +308,28 @@ test("push sender mocks without keys and reports gone subscriptions", async () =
   assert.deepStrictEqual(calls, [["vapid", "mailto:a@x.test", "pub", "priv"], ["send", "e1", "hi"]]);
   assert.deepStrictEqual(await createSendPush({ publicKey: "p", privateKey: "q", webpush: fake(410) })({ endpoint: "e" }, { title: "t" }), { gone: true });
   await assert.rejects(createSendPush({ publicKey: "p", privateKey: "q", webpush: fake(500) })({ endpoint: "e" }, { title: "t" }));
+});
+
+test("cron: free users with no free sessions left get no daily or win-back nudge, but still get the countdown", async () => {
+  const used = { "2026-03-01": { answered: 3, done: true }, "2026-03-02": { answered: 3, done: true }, "2026-03-03": { answered: 3, done: true } };
+  const h = harness([
+    row("out", { progress: state({ days: used, lastDone: "2026-03-04" }) }),
+    row("paid", { progress: state({ days: used, lastDone: "2026-03-04" }) }),
+    row("soon", { progress: state({ days: used, lastDone: "2026-03-04", profile: { interviewDate: "2026-03-12", language: "js", company: null } }) })
+  ], { paid: ["paid"] });
+  await h.run();
+  assert.deepStrictEqual(h.sent.map(m => m.to).sort(), ["paid@x.test", "soon@x.test"]);
+  assert.match(h.sent.find(m => m.to === "soon@x.test").subject, /interview in 7 days/);
+});
+
+test("cron: a failed access check sends nothing and leaves the day unmarked", async () => {
+  const h = harness([row("u1")], { accessFail: ["u1"] });
+  const { body } = await h.run();
+  assert.deepStrictEqual([h.sent.length, h.marked.length, body.skipped], [0, 0, 1]);
+});
+
+test("cron: a failed push lookup after the email still marks the day", async () => {
+  const h = harness([row("u1", { push_enabled: true })], { subsFail: ["u1"] });
+  await h.run();
+  assert.deepStrictEqual([h.sent.length, h.marked.map(m => m[0])], [1, ["u1"]]);
 });
