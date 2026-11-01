@@ -1,5 +1,4 @@
--- A pass bought while another is active starts when that one ends. Revoking a pass (refund or dispute) now pulls
--- the user's later passes forward to close the gap, so a paid, unrefunded pass isn't stuck waiting on a revoked one.
+-- stacked passes start when the previous one ends, so a revoked pass must hand its time to the later ones
 create or replace function public.revoke_entitlement(p_payment_intent text)
 returns int
 language plpgsql security definer set search_path = ''

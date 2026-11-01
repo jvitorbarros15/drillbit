@@ -1,6 +1,4 @@
--- A browser has one push endpoint, and whoever turns notifications on there owns it. RLS alone can't move a row
--- between users, so an account whose session expired without signing out would keep the endpoint forever.
--- Claiming needs the endpoint URL, which only that browser's push service hands out.
+-- RLS can't move a row between users, so an expired session's account would keep a shared browser's endpoint
 create function public.claim_push_subscription(p_endpoint text, p_p256dh text, p_auth text)
 returns void
 language plpgsql security definer set search_path = ''
