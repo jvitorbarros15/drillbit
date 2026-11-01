@@ -269,7 +269,8 @@
   }
 
   const debriefsOf = state => (state.profile && Array.isArray(state.profile.debriefs) ? state.profile.debriefs : []);
-  const latestDebrief = state => debriefsOf(state).reduce((m, d) => (!m || d.at >= m.at ? d : m), null);
+  // a skipped debrief says nothing about what came up, so it doesn't replace an earlier one
+  const latestDebrief = state => debriefsOf(state).filter(d => d.outcome !== "skip").reduce((m, d) => (!m || d.at >= m.at ? d : m), null);
 
   // Ask the day after the interview, and only once per date.
   function debriefDue(state, today) {

@@ -358,6 +358,8 @@ test("debriefs: due once per date, move to the next round, and set focus", () =>
   C.recordDebrief(s, "2026-03-21", { id: "d2", outcome: "waiting", came: ["pc"], hard: ["pb"] });
   assert.strictEqual(C.schedule(s, c, "2026-03-21").current, "pb", "hard in the latest debrief comes first");
   assert.strictEqual(s.profile.interviewDate, null, "no next round clears the date");
+  C.recordDebrief(s, "2026-03-22", { id: "skip", outcome: "skip" });
+  assert.deepStrictEqual([...C.focusOf(s, ctx).hard], ["pb"], "a skipped debrief keeps the last real one's focus");
   C.recordDebrief(s, T, { id: "d3", outcome: "no", next: "2026-03-01" });
   assert.strictEqual(s.profile.interviewDate, null, "a next date in the past is ignored");
 });
