@@ -4,8 +4,13 @@ const { buildReminder, compose } = require("./_lib/reminder");
 const { FREE_PATTERNS } = require("./_lib/split");
 
 
+const formatters = new Map();
+const formatter = zone => {
+  if (!formatters.has(zone)) formatters.set(zone, new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }));
+  return formatters.get(zone);
+};
 const localParts = (now, timeZone) => {
-  const parts = zone => new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(now);
+  const parts = zone => formatter(zone).formatToParts(now);
   let p;
   try { p = parts(timeZone || "UTC"); } catch (e) { p = parts("UTC"); }
   const get = type => p.find(x => x.type === type).value;
@@ -31,6 +36,7 @@ const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFo
     else due.push({ row, date });
   }
   const one = async ({ row, date }) => {
+    let claimed = false;
     try {
       // a failed access check throws to the catch below rather than sending a free-tier message to a paying user
       const [progress, { active }] = await Promise.all([db.progressOf(row.id), db.access(row.id)]);
@@ -40,6 +46,9 @@ const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFo
       if (!msg) { skipped++; return; }
       // free sessions used up: no "today's session" nudges for a session the app won't start
       if (!active && CORE.sessionsDone(progress || {}) >= CORE.FREE_SESSIONS && (msg.kind === "daily" || msg.kind === "winback")) { skipped++; return; }
+      // claim the day first so an overlapping run can't send the same reminder twice
+      if (!(await db.claimReminder(row.id, date))) { skipped++; return; }
+      claimed = true;
       let delivered = false;
       if (row.reminders_enabled !== false) {
         try {
@@ -56,7 +65,7 @@ const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFo
         } catch (e) { console.error("reminder email failed", row.id, e && e.message); }
       }
       if (row.push_enabled && sendPush) {
-        const payload = { title: msg.subject.replace(/^Drillbit: /, ""), body: msg.lines[0] || "", url: base || "/" };
+        const payload = { title: msg.subject.replace(/^Algostead: /, ""), body: msg.lines[0] || "", url: base || "/" };
         const subs = await db.pushSubscriptions(row.id).catch(e => { console.error("push lookup failed", row.id, e && e.message); return []; });
         for (const sub of subs) {
           try {
@@ -66,11 +75,11 @@ const create = ({ db, sendEmail, sendPush = null, unsubscribe, config, contentFo
           } catch (e) { console.error("reminder push failed", row.id, e && e.message); }
         }
       }
-      if (!delivered) { skipped++; return; }
-      await db.markReminded(row.id, date);
+      if (!delivered) { await db.releaseReminder(row.id, row.last_reminder_on); skipped++; return; }
       sent++;
     } catch (e) {
       console.error("reminder failed", row.id, e && e.message);
+      if (claimed) await db.releaseReminder(row.id, row.last_reminder_on).catch(() => {});
       skipped++;
     }
   };

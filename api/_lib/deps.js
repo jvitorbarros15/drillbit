@@ -60,8 +60,14 @@ function buildDeps(env = process.env) {
       const { error } = await sb.from("push_subscriptions").delete().eq("endpoint", endpoint);
       if (error) throw error;
     },
-    async markReminded(userId, date) {
-      const { error } = await sb.from("profiles").update({ last_reminder_on: date }).eq("id", userId);
+    async claimReminder(userId, date) {
+      const { data, error } = await sb.from("profiles").update({ last_reminder_on: date }).eq("id", userId)
+        .or(`last_reminder_on.is.null,last_reminder_on.neq.${date}`).select("id");
+      if (error) throw error;
+      return !!(data && data.length);
+    },
+    async releaseReminder(userId, previous) {
+      const { error } = await sb.from("profiles").update({ last_reminder_on: previous || null }).eq("id", userId);
       if (error) throw error;
     },
     async disableReminders(userId) {
