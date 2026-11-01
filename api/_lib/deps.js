@@ -26,10 +26,20 @@ function buildDeps(env = process.env) {
       return rpc("revoke_entitlement", { p_payment_intent: paymentIntent });
     },
     async reminderCandidates() {
-      const { data, error } = await sb.from("profiles").select("id, reminder_hour, timezone, last_reminder_on, reminders_enabled, push_enabled")
-        .or("reminders_enabled.eq.true,push_enabled.eq.true").not("reminder_hour", "is", null);
+      // paged, since PostgREST caps a single response at max-rows
+      const PAGE = 1000, out = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await sb.from("profiles").select("id, reminder_hour, timezone, last_reminder_on, reminders_enabled, push_enabled")
+          .or("reminders_enabled.eq.true,push_enabled.eq.true").not("reminder_hour", "is", null).order("id").range(from, from + PAGE - 1);
+        if (error) throw error;
+        out.push(...(data || []));
+        if (!data || data.length < PAGE) return out;
+      }
+    },
+    async userForPayment(paymentIntent) {
+      const { data, error } = await sb.from("entitlements").select("user_id").eq("stripe_payment_intent", paymentIntent).limit(1);
       if (error) throw error;
-      return data || [];
+      return data && data[0] ? data[0].user_id : null;
     },
     async progressOf(userId) {
       const { data, error } = await sb.from("profiles").select("progress").eq("id", userId).maybeSingle();
