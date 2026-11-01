@@ -20,6 +20,7 @@ test.before(async () => {
   await db.exec(read("supabase/migrations/20261031000000_attempt_plan.sql"));
   await db.exec(read("supabase/migrations/20261031010000_claim_push.sql"));
   await db.exec(read("supabase/migrations/20261031020000_revoke_repack.sql"));
+  await db.exec(read("supabase/migrations/20261101000000_lock_trigger_function.sql"));
   await db.exec(`
     insert into auth.users (id, email) values ('${A}', 'a@x.test'), ('${B}', 'b@x.test');
     insert into public.attempts (user_id, item_id, correct) values ('${A}', 'q1', true), ('${B}', 'q2', false);
@@ -258,6 +259,13 @@ test("a refund processed before its grant leaves the late grant revoked", async 
   assert.strictEqual((await rows(`select public.has_access('${F}') as ok`))[0].ok, true, "an unrelated purchase still works");
   await as(A);
   assert.strictEqual((await rows("select * from public.revoked_payments")).length, 0, "RLS with no policies hides the table from users");
+});
+
+test("the sign-up trigger function can't be called through the API", async () => {
+  for (const [uid, role] of [[A, "authenticated"], [null, "anon"]]) {
+    await as(uid, role);
+    await assert.rejects(db.query("select public.handle_new_user()"), /permission denied/);
+  }
 });
 
 test("grant and revoke are not executable by authenticated or anon", async () => {
