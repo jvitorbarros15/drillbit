@@ -232,6 +232,15 @@ const LESSONS = [
   return best;
 }`,
     viz: { view: "array-pointers", watch: ["start", "i", "best"], pointers: ["start", "i"], window: ["start", "i"], arrayArg: 0 },
+    plan: {
+      approach: { options: ["Check every substring for repeats","Sliding window with each character's last index; jump the start past a repeat","Sort the characters","Put the whole string in a Set and count it"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(n²)","O(number of distinct characters)","O(log n)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why check `last.get(s[i]) >= start` before jumping?", options: ["Speed","An old repeat that's already outside the window must not move start backwards, as in 'abba'","Map lookups can return undefined"], answer: 1, explain: "In 'abba', at the last 'a' the window starts at 2. The earlier 'a' at index 0 is outside it, and jumping to 1 would grow the window over the repeated 'b'." },
+      { q: "Now allow at most k distinct characters instead of no repeats. What changes?", options: ["Same sliding window: count characters inside it and shrink from the left while there are more than k distinct","You need DP","Sort first"], answer: 0, explain: "Only the validity check changes. Each index enters and leaves once, so it stays O(n)." }
+    ],
     explain: "Store each character's last index and move the left edge past repeats. The 'abba' case catches people who forget to check the old index is still inside the window. Same shape as rolling rate limit windows and streaming dedupe."
   },
   {
@@ -322,6 +331,15 @@ const LESSONS = [
   }
   return out;
 }`,
+    plan: {
+      approach: { options: ["Compare every pair and merge until nothing changes","Sort by start, then extend the last merged interval or start a new one","Mark every covered point in a big array","Sort by length"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 3 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why sort by start?", options: ["After sorting, anything that overlaps the current merged block comes right after it","Sorting by start is faster than by end","Only because the output must be sorted"], answer: 0, explain: "Once sorted, an interval that starts after the block's end can never overlap anything earlier, so one pass is enough." },
+      { q: "What change keeps touching intervals like [1, 4] and [4, 5] separate?", options: ["Sort descending","Use `s < last[1]` instead of `s <= last[1]`","Use Math.min for the end"], answer: 1, explain: "The comparison decides whether a shared endpoint counts as overlap. Asking which one the interviewer wants is a good habit." }
+    ],
     explain: "Sort, then sweep. Calendar free/busy, merging IP ranges and compacting time series all use this exact move. Note the [1,10],[2,3] case: you need max, not just the new end."
   },
   {
@@ -423,6 +441,15 @@ const LESSONS = [
   }
   return done === n;
 }`,
+    plan: {
+      approach: { options: ["Try every order of courses","Kahn's algorithm: keep taking courses with no prerequisites left; if some are never taken, there's a cycle","Sort courses by label","Check that no pair [a, b] also appears as [b, a]"], answer: 1 },
+      time: { options: ["O(n²)","O(n + number of prereqs)","O(n log n)","O(n!)"], answer: 1 },
+      space: { options: ["O(1)","O(log n)","O(n + number of prereqs)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Which input does 'no pair appears both ways' wrongly accept?", options: ["[[1,0]]","[[1,0],[2,1],[0,2]]","[]"], answer: 1, explain: "That's a three course cycle: 0 before 2, 2 before 1, 1 before 0. No single pair is reversed, but nothing can go first." },
+      { q: "Now return a valid order to take the courses. How?", options: ["Sort by in-degree","It needs DFS, Kahn's can't do it","Return the order Kahn's takes courses off the queue, if it contains all n"], answer: 2, explain: "Each course is dequeued only after all its prerequisites, so the dequeue order is a topological order." }
+    ],
     explain: "If you can topologically sort the graph, it has no cycle. Kahn's algorithm is O(V+E). Build systems, package managers, Airflow DAGs and migration runners all do this under the hood."
   },
   {
@@ -458,6 +485,15 @@ const LESSONS = [
       if (c <= x && dp[x - c] + 1 < dp[x]) dp[x] = dp[x - c] + 1;
   return dp[amount] === Infinity ? -1 : dp[amount];
 }`,
+    plan: {
+      approach: { options: ["Greedy: always take the biggest coin that fits","DP over amounts: dp[x] = 1 + min(dp[x - c]) over every coin c","Try every combination recursively with no memo","Sort the coins and binary search"], answer: 1 },
+      time: { options: ["O(amount)","O(amount × number of coins)","O(2^amount)","O(coins log coins)"], answer: 1 },
+      space: { options: ["O(1)","O(number of coins)","O(amount)","O(amount²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Which coins make greedy fail for amount 6?", options: ["[1, 2, 5]","[1, 3, 4]","[1, 5, 10]"], answer: 1, explain: "Greedy takes 4 + 1 + 1 = 3 coins. The best is 3 + 3 = 2 coins." },
+      { q: "Now count the ways to make the amount, where order doesn't matter. What changes?", options: ["Coins in the outer loop, amounts inside: ways[x] += ways[x - c]","Same loops as now, but sum instead of min","Multiply the counts"], answer: 0, explain: "With amounts outside, 1 + 2 and 2 + 1 get counted separately. Putting coins outside counts each combination once." }
+    ],
     explain: "Bottom-up DP over amounts. Each state reuses answers to smaller amounts, so the total work is O(amount × coins). The last test kills greedy and naive recursion without memoization."
   },
   {
@@ -506,6 +542,15 @@ const LESSONS = [
   }
   return out;
 }`,
+    plan: {
+      approach: { options: ["Array of keys, moving a key to the end on every use","Map in insertion order: delete and re-insert a key on use, evict the first key","Sort keys by last use on every operation","Object with a timestamp per key, scanning for the oldest on eviction"], answer: 1 },
+      time: { options: ["O(1) per operation","O(log n) per operation","O(n) per operation","O(capacity) per put"], answer: 0 },
+      space: { options: ["O(1)","O(capacity)","O(log capacity)","O(capacity²)"], answer: 1 }
+    },
+    followups: [
+      { q: "Your language has no insertion-ordered map. What's the classic structure?", options: ["A min-heap keyed by last use","A hash map from key to node in a doubly linked list, most recent at the head","A sorted array"], answer: 1, explain: "The map finds the node in O(1), and the linked list moves or removes it in O(1). A heap would make every operation O(log n)." },
+      { q: "Why delete before re-inserting on a get?", options: ["Map.set on an existing key keeps its old position, so the key wouldn't become most recent","delete frees memory","It isn't needed"], answer: 0, explain: "JavaScript Maps keep the original insertion order when you overwrite a key. Deleting first puts it at the end." }
+    ],
     explain: "The textbook version is a hash map plus a doubly linked list. In JS, a Map gives you both since keys iterate in insertion order. LRU is how CPU caches, CDNs, database buffer pools and (approximately) Redis decide what to throw away."
   },
   {
@@ -547,6 +592,16 @@ const LESSONS = [
   }
   return tails.length;
 }`,
+    plan: {
+      q: "Which approach fits under O(n²)?",
+      approach: { options: ["DP: for each i, check every j < i","Keep the smallest tail for each length and binary search where each number goes","Sort and count distinct values","Greedy: take a number whenever it's bigger than the last one taken"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 3 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Is the `tails` array itself a longest increasing subsequence?", options: ["Yes","No, only its length is right: [3, 4, 1] ends with tails [1, 4], which isn't a subsequence","Only when the input is sorted"], answer: 1, explain: "Overwriting a tail keeps the best ending value for future numbers, not the actual sequence. To rebuild the sequence, store a parent index for each number." },
+      { q: "Non-decreasing instead of strictly increasing?", options: ["Nothing changes","Sort first","Search for the first tail greater than x instead of the first tail >= x"], answer: 2, explain: "Equal values may now extend a sequence, so x goes after equal tails: change `tails[m] < x` to `tails[m] <= x`." }
+    ],
     explain: "Patience sorting: replace the first tail that's ≥ x, or append. Each number costs one binary search, so O(n log n). The trick of keeping 'the best possible state per length' shows up in a lot of hard DP problems."
   },
   {
@@ -588,6 +643,15 @@ const LESSONS = [
   }
   return prev[n];
 }`,
+    plan: {
+      approach: { options: ["Greedy: walk both strings and replace at each mismatch","DP over prefixes: cost to turn a's first i characters into b's first j, keeping only the previous row","Longest common substring, then subtract","Try every sequence of edits"], answer: 1 },
+      time: { options: ["O(m + n)","O(m × n)","O(3^(m+n))","O(n log n)"], answer: 1 },
+      space: { options: ["O(1)","O(length of b)","O(log n)","O(2^(m+n))"], answer: 1 }
+    },
+    followups: [
+      { q: "What do `prev[j-1]`, `prev[j]` and `cur[j-1]` stand for?", options: ["Replace, delete from a, insert into a","Three ways to match the same character","Insert, insert, delete"], answer: 0, explain: "Diagonal is a replace (or a free match), up drops a[i-1], and left adds b[j-1]." },
+      { q: "Only inserts and deletes are allowed, no replace. What's the answer?", options: ["The same as now","m + n - 2 × the longest common subsequence length","m + n"], answer: 1, explain: "Keep the longest common subsequence, delete everything else from a, insert everything else from b." }
+    ],
     explain: "Classic 2D DP in O(m·n) time. You only ever look at the previous row, so memory drops to O(n). Spell checkers, fuzzy search, DNA alignment and diff tools are all built on variants of this."
   },
   {
@@ -627,6 +691,15 @@ const LESSONS = [
   }
   return out;
 }`,
+    plan: {
+      approach: { options: ["Recompute the max of each window","Deque of indices with decreasing values: drop smaller ones from the back and expired ones from the front","Max-heap of the window without removing old entries","Sort each window"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log k)","O(k)","O(n·k)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why can you drop a smaller value from the back when a bigger one arrives?", options: ["Only to keep the deque short","It leaves the window before the new value and is never bigger, so it can never be a max again","It's wrong when there are duplicates"], answer: 1, explain: "Every index is pushed once and popped at most once, which is where O(n) comes from." },
+      { q: "Window minimum instead?", options: ["Keep values increasing: pop from the back while the back is >= the new value","You need a heap","Sort the window"], answer: 0, explain: "It's the same structure with the comparison flipped." }
+    ],
     explain: "Monotonic deque: every index is pushed and popped once, so O(n) total. Watch out for `Array.shift()` in JS, it can be O(n) and can quietly blow up your complexity. Same structure as 'max latency over the last minute' in streaming metrics."
   },
   {
@@ -722,6 +795,15 @@ const LESSONS = [
   }
   return best;
 }`,
+    plan: {
+      approach: { options: ["For each bar, expand left and right while bars are at least as tall","Increasing stack of indices: when a shorter bar arrives, pop and measure each popped bar's widest rectangle","Split at the tallest bar and recurse","Two pointers from both ends"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why process an extra height of 0 at i === h.length?", options: ["It avoids an index error","It flushes every bar left on the stack so each gets measured","It handles negative heights"], answer: 1, explain: "Bars still on the stack at the end extend to the right edge. A final 0 is shorter than all of them, so they all get popped and measured." },
+      { q: "How does this solve the largest rectangle of 1s in a binary matrix?", options: ["BFS from each 1","It doesn't apply","Build heights row by row (consecutive 1s above each cell) and run this on every row: O(rows × cols)"], answer: 2, explain: "Each row turns into a histogram, so the 2D problem becomes rows runs of this one." }
+    ],
     explain: "Each bar is pushed and popped exactly once, O(n). The sentinel 0 at the end forces every remaining bar to be measured. This is the building block for 'maximal rectangle in a binary matrix', a famously hard follow-up."
   },
   {
@@ -760,6 +842,15 @@ const LESSONS = [
   }
   return 0;
 }`,
+    plan: {
+      approach: { options: ["DFS through every path and keep the shortest","BFS level by level, trying every one letter change that's in the dictionary","Sort the words and walk neighbors","Greedy: always move to the word closest to end"], answer: 1 },
+      time: { options: ["O(N²)","O(N × L² × 26) for N words of length L","O(26^L)","O(N log N)"], answer: 1 },
+      space: { options: ["O(1)","O(L)","O(N × L)","O(26^L)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why BFS and not DFS?", options: ["BFS explores by distance, so the first time it reaches end is along a shortest path","DFS can't visit every word","BFS always uses less memory"], answer: 0, explain: "DFS finds a path, not the shortest one, unless it explores everything." },
+      { q: "How do you speed it up on a big dictionary?", options: ["Sort the dictionary","Bidirectional BFS: expand from both ends, always growing the smaller frontier","DFS with memoization"], answer: 1, explain: "Two searches of half the depth touch far fewer words than one search of the full depth." }
+    ],
     explain: "BFS over an implicit graph. Generating neighbors by mutation (26 × word length per word) beats comparing every pair of words. Bidirectional BFS, searching from both ends and meeting in the middle, cuts the search dramatically on big dictionaries."
   },
   {
@@ -957,6 +1048,15 @@ const LESSONS = [
   }
   return out;
 }`,
+    plan: {
+      approach: { options: ["Count requests per fixed one second window","Track tokens and the last time: add elapsed × rate (capped at capacity), then spend 1 if available","Keep a log of every request time","Allow every n-th request"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "Why cap tokens at capacity when refilling?", options: ["Floating point errors","Without it, a long idle period would allow an unlimited burst","Tokens can't be fractions"], answer: 1, explain: "Capacity is the largest burst you allow. The rate sets the long run average." },
+      { q: "How is this different from a fixed window counter?", options: ["No difference","A fixed window can let through up to twice the limit around a window boundary; the bucket caps any burst at capacity","A fixed window is more accurate"], answer: 1, explain: "With a fixed window, a burst at the end of one window plus a burst at the start of the next both pass." }
+    ],
     explain: "A token bucket allows bursts up to capacity while enforcing an average rate, and it only needs two numbers per user (tokens and last timestamp), so it fits neatly in Redis. Sliding window logs are more exact but store every timestamp. API gateways and cloud providers use token buckets all over."
   },
   {
@@ -1362,6 +1462,16 @@ const LESSONS = [
   }
   return out;
 }`,
+    plan: {
+      q: "Which approach gives O(N log k)?",
+      approach: { options: ["Concatenate everything and sort","Min-heap holding the current head of each list","Merge lists one after another into a growing result","Binary search each element into the output"], answer: 1 },
+      time: { options: ["O(N log N)","O(N log k)","O(N × k)","O(k log N)"], answer: 1 },
+      space: { options: ["O(1)","O(k)","O(N²)","O(log N)"], answer: 1 }
+    },
+    followups: [
+      { q: "Why is merging one list at a time slower?", options: ["Early elements get copied again at every step: about O(N × k) total","It isn't","Because of recursion"], answer: 0, explain: "The growing result is re-walked k times." },
+      { q: "Another O(N log k) approach without a heap?", options: ["Sort each list","A hash map","Merge pairs of lists in rounds, like merge sort: log k rounds of O(N)"], answer: 2, explain: "Pairwise merging halves the number of lists each round." }
+    ],
     explain: "The heap never holds more than k items, so each of the N pops and pushes costs O(log k). Concatenating and sorting is O(N log N), fine here but worse when k is small and N is huge. This is how databases merge sorted runs in external sort and how LSM trees compact SSTables."
   },
   {
@@ -1393,6 +1503,16 @@ const LESSONS = [
   }
   return count;
 }`,
+    plan: {
+      q: "Which approach handles a 200,000 node chain?",
+      approach: { options: ["Recursive DFS from each unvisited node","Union-find with path compression: start at n and subtract one per union that joins two different roots","n minus the number of edges","Sort the edges"], answer: 1 },
+      time: { options: ["O(n × E)","Close to O(n + E)","O(n²)","O(E²)"], answer: 1 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why is `n - edges.length` wrong?", options: ["It's right","Repeated edges only","An edge inside an existing component, closing a cycle, doesn't merge anything"], answer: 2, explain: "Only edges that join two different roots reduce the count, which is exactly what the find check does." },
+      { q: "What does union by rank or size add?", options: ["Keeps the trees shallow, so with path compression find is nearly O(1) amortized","Correctness","Less memory"], answer: 0, explain: "Without it, an unlucky order can build tall trees before compression kicks in." }
+    ],
     explain: "Union-Find tracks which set each node belongs to. Path compression (here the halving version, done in a loop) keeps trees shallow, so operations are close to O(1) in practice. Halving alone gives amortized O(log n), and adding union by rank gets you to inverse Ackermann. An iterative BFS also works. A recursive DFS 200,000 levels deep blows the call stack."
   },
   {
@@ -1434,6 +1554,15 @@ const LESSONS = [
   }
   return -1;
 }`,
+    plan: {
+      approach: { options: ["Find the pivot with a linear scan, then binary search","Binary search where one half is always sorted; check whether target falls in that half","Sort, then binary search","Search both halves recursively"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 1 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "How do you know the left half is sorted?", options: ["target < nums[mid]","nums[lo] <= nums[mid]","nums[mid] < nums[hi] means the left half is sorted"], answer: 1, explain: "If the rotation point were in the left half, nums[lo] would be bigger than nums[mid]." },
+      { q: "Now duplicates are allowed, like [1, 1, 1, 0, 1]. What breaks?", options: ["When nums[lo] === nums[mid] you can't tell which half is sorted, so you shrink by one, worst case O(n)","Nothing","Use lower bound instead"], answer: 0, explain: "With all equal values except one, no comparison tells you where the odd one is." }
+    ],
     explain: "Binary search doesn't need the whole range sorted. It needs a rule that throws away half the range each step. Here one side of mid is always sorted, and a simple range check tells you whether the target lives there. Off by one bugs hide in the `<=` vs `<` comparisons, so trace a two element case."
   },
   {
@@ -1462,6 +1591,15 @@ const LESSONS = [
   }
   return count;
 }`,
+    plan: {
+      approach: { options: ["Check every subarray","Sliding window that shrinks when the sum is too big","Prefix sums, with a map counting how often each sum has appeared","Sort and two pointers"], answer: 2 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why does a sliding window fail here?", options: ["It's too slow","Negative numbers mean adding an element can shrink the sum, so there's no rule for moving the left edge","It works fine"], answer: 1, explain: "Sliding windows need the sum to only grow as the window grows." },
+      { q: "Why start the map with {0: 1}?", options: ["It counts subarrays starting at index 0, where the prefix sum itself equals k","It avoids undefined","It's the empty array's answer"], answer: 0, explain: "sum - k = 0 means the whole prefix is the subarray, and the empty prefix accounts for it." }
+    ],
     explain: "Prefix sums turn 'sum of a range' into 'difference of two numbers', and a hash map counts how many earlier prefixes make that difference equal k. One pass, O(n). Sliding windows fail here because negative numbers break the 'grow or shrink' logic. Seeding the map with `{0: 1}` counts subarrays that start at index 0."
   },
   {
@@ -1511,6 +1649,15 @@ const LESSONS = [
   }
   return bestLen === Infinity ? "" : s.slice(bestL, bestL + bestLen);
 }`,
+    plan: {
+      approach: { options: ["Check every substring","Sliding window: grow right until every needed character is covered, then shrink left while it stays covered","Sort both strings","Two pointers from both ends of s"], answer: 1 },
+      time: { options: ["O(|s|²)","O(|s| + |t|)","O(|s| × |t|)","O(|s| log |s|)"], answer: 1 },
+      space: { options: ["O(1)","O(|s|²)","O(distinct characters in t)","O(|s| log |s|)"], answer: 2 }
+    },
+    followups: [
+      { q: "What does `missing` track?", options: ["How many distinct characters are left","How many characters of t, counting repeats, the window still lacks","The window's length"], answer: 1, explain: "It drops only when a needed character arrives while still owed, so one counter replaces comparing two maps." },
+      { q: "Why is the total work O(|s|) even with the inner while loop?", options: ["l and r only move forward, so each moves at most |s| times","Because of the map","It isn't"], answer: 0, explain: "Amortized analysis: count pointer moves, not loop nesting." }
+    ],
     explain: "Each index enters and leaves the window once, so it's O(|s| + |t|). The `missing` counter is the key trick: it avoids re-comparing whole frequency maps on every step. Counts can go negative in `need`, which just means the window has extras of that character."
   },
   {
@@ -1607,6 +1754,15 @@ const LESSONS = [
     else lo = i + 1;
   }
 }`,
+    plan: {
+      approach: { options: ["Merge both arrays and take the middle","Binary search a cut in the shorter array so the left sides hold half the elements and every left value <= every right value","Binary search on the value range","Drop the min and max until one or two remain"], answer: 1 },
+      time: { options: ["O(m + n)","O(log(min(m, n)))","O(log m × log n)","O((m + n) log(m + n))"], answer: 1 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "Why binary search the shorter array?", options: ["Shorter arrays sort faster","Either works the same","It's faster, and j = half - i always stays in range in the longer one"], answer: 2, explain: "Searching the longer one can push j below 0 or past n." },
+      { q: "Generalize to the k-th smallest of two sorted arrays.", options: ["Merge them","Discard about k/2 elements per step from whichever array's k/2-th element is smaller: O(log k)","A heap of size k"], answer: 1, explain: "The smaller of the two k/2-th elements, and everything before it, can't be the k-th smallest." }
+    ],
     explain: "You're not searching for a value, you're searching for a partition. Picking i elements from a forces half - i from b, and the comparisons tell you which way to move. Infinity sentinels remove a pile of edge cases. Merging until the middle is O(m + n), which is fine for small inputs but reads far too many elements for the huge tests, and interviewers asking this one want the log version."
   },
   {
@@ -1716,6 +1872,15 @@ const LESSONS = [
     return ring[lo === ring.length ? 0 : lo][1];
   });
 }`,
+    plan: {
+      approach: { options: ["Scan the ring for each key","Binary search for the first position >= h, wrapping to index 0 past the end","Hash the key a second time","Sort the hashes"], answer: 1 },
+      time: { options: ["O(K × R)","O(K log R) for K keys and R ring entries","O(R log K)","O(1) per key"], answer: 1 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "Why give each server many positions (virtual nodes)?", options: ["Faster lookups","Fewer hash collisions","Spreads each server's share evenly, and spreads a failed server's keys across many others"], answer: 2, explain: "With one position each, a server can own a huge arc by chance, and its neighbor takes all of its load when it fails." },
+      { q: "A node is removed. Which keys move?", options: ["Only the keys it owned; they go to the next node clockwise","Every key","About half the keys"], answer: 0, explain: "That's the point of consistent hashing compared with hash mod n, where almost every key moves." }
+    ],
     explain: "This is the lookup at the heart of Dynamo, Cassandra and many cache clients. Lower bound binary search makes each lookup O(log nodes). The wraparound is what makes it a ring: keys past the last node belong to the first one."
   },
   {
@@ -1767,6 +1932,15 @@ const LESSONS = [
     return false;
   });
 }`,
+    plan: {
+      approach: { options: ["Count requests in fixed windows","Queue of allowed timestamps: drop ones older than the window, allow if fewer than limit remain","A token bucket","Allow if the previous request was more than windowMs ago"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(limit)","O(n²)","O(log n)"], answer: 1 }
+    },
+    followups: [
+      { q: "Why don't rejected requests go in the log?", options: ["The rule counts allowed requests only; logging rejects would keep a busy client locked out longer","It saves memory, nothing else","They should"], answer: 0, explain: "Read the spec closely. 'Rejected requests don't count' is a deliberate rule." },
+      { q: "Memory matters at a huge limit. What's a cheaper approximation?", options: ["A bigger log","A sliding window counter: weight the previous fixed window's count by how much of it still overlaps","Store the log on disk"], answer: 1, explain: "Two counters per client instead of one timestamp per request, at the cost of being approximate." }
+    ],
     explain: "The sliding log is exact: no boundary bursts. The cost is memory, one timestamp per allowed request per user. In Redis it's a sorted set: ZREMRANGEBYSCORE to drop old entries, ZCARD to count, ZADD to record, all inside a Lua script so it's atomic."
   },
   {
@@ -1809,6 +1983,15 @@ const LESSONS = [
   const r = maxDepth(root.right);
   return 1 + Math.max(l, r);
 }`,
+    plan: {
+      approach: { options: ["Recursion: 1 + max(depth(left), depth(right))","Count all the nodes","Follow only the left children","log2 of the number of nodes"], answer: 0 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(height of the tree)","O(n²)","O(log n) always"], answer: 1 }
+    },
+    followups: [
+      { q: "The tree is a 100,000 node chain. What fails?", options: ["Nothing","Recursion depth can overflow the call stack; use BFS by level or an explicit stack","The time limit"], answer: 1, explain: "Recursion uses one frame per level, and a chain has 100,000 levels." },
+      { q: "Minimum depth instead?", options: ["Swap max for min in the same recursion","BFS and stop at the first leaf; a node with one child isn't a leaf","It's the same as max depth"], answer: 1, explain: "Plain min breaks when one child is null: a root with only a right child would report depth 1." }
+    ],
     explain: "An empty tree has depth 0, so null is the base case. Any other node is 1 plus the deeper of its two subtrees, so every node asks its children and combines the answers. That visits each node once, O(n) time, with a call stack as deep as the tree. Call each child once and keep the result: calling it a second time just to return it makes the work double at every level of a deep tree."
   },
   {
@@ -1865,6 +2048,15 @@ const LESSONS = [
   };
   return ok(root, -Infinity, Infinity);
 }`,
+    plan: {
+      approach: { options: ["Check each node against its two children only","Pass down (low, high) bounds: going left tightens high, going right tightens low","Check that the tree is balanced","Compare the root with every other node"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(height of the tree)","O(n²)","O(log n) always"], answer: 1 }
+    },
+    followups: [
+      { q: "Which tree passes the children-only check but isn't a BST?", options: ["5 with children 3 and 7","5 with left child 3, where 3 has a right child 7","A single node"], answer: 1, explain: "7 is fine next to its parent 3, but it sits in 5's left subtree, so it must be smaller than 5." },
+      { q: "Another way to validate it?", options: ["In-order traversal must be strictly increasing","Pre-order must be sorted","Level order must be sorted"], answer: 0, explain: "In-order visits a BST in sorted order, so compare each value with the previous one." }
+    ],
     explain: "Each call carries an open range that the node must stay inside. Going left tightens the upper bound to the node's value, going right tightens the lower bound. A check that only compares a node with its parent accepts a 3 hiding in the right subtree of a 5, because 3 is smaller than its own parent 6. An inorder walk that must be strictly increasing is an equivalent test. Both run in O(n) time with O(h) stack."
   },
   {
@@ -1902,6 +2094,15 @@ const LESSONS = [
   while (i < intervals.length) out.push(intervals[i++]);
   return out;
 }`,
+    plan: {
+      approach: { options: ["Append it and run merge intervals with a sort","One pass: copy intervals that end before it, absorb the overlapping ones, copy the rest","Binary search and splice it in without merging","Insert it at the start"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why `intervals[i][1] < s` in the first loop and not `<=`?", options: ["To skip duplicates","Off by one doesn't matter here","Touching intervals must merge, so one ending exactly at s overlaps"], answer: 2, explain: "The spec says [1,5] and [5,8] merge, so an end equal to s belongs in the merge loop." },
+      { q: "Can binary search make the whole thing O(log n)?", options: ["It finds where the overlap starts and ends in O(log n), but building the output is still O(n)","Yes, completely","No, binary search doesn't apply"], answer: 0, explain: "Worth saying out loud: you can speed up the search, but you still copy the result." }
+    ],
     explain: "Because the input is sorted, one pass is enough: copy everything that ends before the new interval starts, absorb everything that starts at or before the new end by widening the bounds with min and max, then copy the rest. The merged end is a max, so inserting [2,3] into [1,5] keeps 5. Strict `<` on the first loop and `<=` on the second are what make touching intervals merge. O(n) time, no sort needed."
   },
   {
@@ -1973,6 +2174,15 @@ const LESSONS = [
   }
   return out;
 }`,
+    plan: {
+      approach: { options: ["DFS, then sort by depth","BFS one level at a time: the current level's children make the next level","Pre-order, split every 2^d values","In-order traversal"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(height of the tree)","O(width of the widest level)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Zigzag order: left to right, then right to left, alternating?", options: ["Same BFS, reverse every other level's values","Use only a stack","Switch to DFS"], answer: 0, explain: "The traversal stays the same. Only how you record each level changes." },
+      { q: "Can DFS produce the same output?", options: ["No","Only for complete trees","Yes: pass the depth down and push into out[depth]; visiting left before right keeps each level in order"], answer: 2, explain: "Pre-order reaches each level's nodes left to right, so the per-level arrays come out the same." }
+    ],
     explain: "BFS visits nodes closest to the root first. Holding each level as its own list keeps the level boundaries without counting anything: collect the values, then build the next list from the children. With a single queue you get the same result by reading the queue's length before the inner loop. Every node is handled once, O(n) time, and the extra space is the widest level, which can be about half the nodes in a complete tree. It uses no recursion, so a 2,000 deep chain is not a problem."
   },
   {
@@ -2004,6 +2214,15 @@ const LESSONS = [
   }
   return rooms;
 }`,
+    plan: {
+      approach: { options: ["Count meetings that overlap any other meeting","Sort starts and ends separately; a start before the earliest unfinished end needs a new room","Greedy by duration","Sort by end time and count"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 3 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why is it fine to sort starts and ends separately?", options: ["It's an approximation","Rooms only depend on how many meetings run at once, not which meeting is which","It isn't fine"], answer: 1, explain: "At any moment, rooms in use = starts so far minus ends so far." },
+      { q: "Another standard approach?", options: ["Union-find","DP over meetings","Sort by start and keep a min-heap of end times; free the earliest room if it's done"], answer: 2, explain: "The heap holds rooms in use. Its size never shrinks, so its final size is the answer." }
+    ],
     explain: "The number of rooms equals the largest number of meetings overlapping at one moment. Sort starts and ends separately and sweep: each new start either reuses the room that frees up first (its end is at or before this start) or opens a new room. Because the comparison is `>=`, a meeting that ends at 10 frees its room for one that starts at 10. Note this is the opposite convention from merging touching intervals, so always check what the problem says. O(n log n) for the sorts, O(n) for the sweep. Comparing every pair is O(n^2) and times out on 100,000 meetings."
   },
   {
@@ -2330,6 +2549,16 @@ const LESSONS = [
   }
   return values[slow];
 }`,
+    plan: {
+      q: "Which approach does one pass with O(1) extra space?",
+      approach: { options: ["Copy the values in list order into an array and take the middle","Slow pointer moves one step, fast moves two; when fast hits the end, slow is in the middle","Return values[Math.floor(n / 2)]","Sort the values"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "Why is `values[Math.floor(n / 2)]` wrong?", options: ["It's off by one","The nodes aren't stored in list order","It's right"], answer: 1, explain: "Position in the arrays isn't position in the list. You have to follow next." },
+      { q: "Return the first middle for even lengths instead?", options: ["Loop while `next[fast] !== -1 && next[next[fast]] !== -1`","Always return slow's predecessor","Use n / 2"], answer: 0, explain: "Stopping one step earlier leaves slow on the first of the two middles, and odd lengths are unchanged." }
+    ],
     explain: "A linked list has no index, so `values[n / 2]` is the middle of the array, not of the list. The fast pointer moves two links for every one the slow pointer moves, so when fast reaches the end slow is halfway. That is one pass, O(n) time and O(1) memory, without counting the length first."
   },
   {
@@ -2398,6 +2627,16 @@ const LESSONS = [
   }
   return false;
 }`,
+    plan: {
+      q: "Which approach uses O(1) extra memory?",
+      approach: { options: ["A Set of visited nodes","Floyd: slow moves one step, fast two; they meet only if there's a cycle","Sort the next array","Recursion with a depth counter"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "How do you find the node where the cycle starts?", options: ["Where fast is when they meet","After they meet, move one pointer back to the head and step both one at a time; they meet at the start","The largest index in the cycle"], answer: 1, explain: "The distance from the head to the start equals the distance from the meeting point to the start, going around the cycle." },
+      { q: "Why can't fast jump over slow without meeting it?", options: ["Inside the cycle the gap shrinks by exactly one each step, so it reaches zero","It can, so you check twice","Because the list is an array"], answer: 0, explain: "Fast gains one node per step on slow, which is why it can't skip past." }
+    ],
     explain: "Without a loop the fast pointer falls off the end. With one, both pointers end up circling it, and since fast gains one link on slow per step, they must meet. That is O(n) time and O(1) memory, compared with a Set that needs memory for every node. Checking each new node against all earlier ones with a list is O(n squared) and takes far too long on a million nodes."
   },
   {
@@ -2421,6 +2660,15 @@ const LESSONS = [
   for (let i = 0; i < nums.length; i++) prefix[i + 1] = prefix[i] + nums[i];
   return queries.map(([l, r]) => prefix[r + 1] - prefix[l]);
 }`,
+    plan: {
+      approach: { options: ["Loop over each range","Prefix sums: answer = prefix[r + 1] - prefix[l]","Sort the queries","Binary search inside each range"], answer: 1 },
+      time: { options: ["O(n × q)","O(n + q) for q queries","O(q log n)","O(n log n)"], answer: 1 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Now nums can change between queries. What then?", options: ["Rebuild the prefix array after each update","Prefix sums still work","A Fenwick (binary indexed) tree or segment tree: O(log n) per update and per query"], answer: 2, explain: "Rebuilding makes every update O(n). The trees balance both operations." },
+      { q: "Why make prefix length n + 1, with prefix[0] = 0?", options: ["Ranges that start at 0 need no special case","It saves memory","JavaScript requires it"], answer: 0, explain: "prefix[i] is the sum of the first i numbers, so every range is a single subtraction." }
+    ],
     explain: "`prefix[i]` is the sum of the first i numbers, so the array has n + 1 entries and starts with 0. The sum of `nums[l..r]` is `prefix[r + 1] - prefix[l]`, and the leading 0 is what makes a query starting at index 0 work. Building it is O(n) once, then each query is O(1). Looping over each range is O(n) per query, about 4 times 10^10 steps on the big test."
   },
   {
@@ -2451,6 +2699,15 @@ const LESSONS = [
   }
   return -1;
 }`,
+    plan: {
+      approach: { options: ["Recompute both sums at every index","Total once, then a running left sum: right = total - left - nums[i]","Two pointers from both ends, moving the smaller side","Binary search for the balance point"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "Why doesn't a two pointer approach work?", options: ["It's too slow","It's fine","With negative numbers, moving the smaller side doesn't move you toward balance"], answer: 2, explain: "Two pointers assume sums only grow as you add elements. Negatives break that." },
+      { q: "What should [0] return?", options: ["0: both sides are empty and sum to 0","-1","An error"], answer: 0, explain: "Edge cases like a single element are worth saying out loud before you code." }
+    ],
     explain: "With the total known, the sum to the right of index i is `total - left - nums[i]`, so one running left sum is enough. The empty prefix counts as 0, which is why index 0 can be a pivot. That is O(n) with two passes, versus O(n squared) for summing both sides at every index."
   },
   {
@@ -2484,6 +2741,15 @@ const LESSONS = [
   }
   return out;
 }`,
+    plan: {
+      approach: { options: ["Scan the stack on every getMin","Store each value together with the minimum at the time it was pushed","Keep one global min variable","Keep a sorted array alongside"], answer: 1 },
+      time: { options: ["O(1) per operation","O(log n) per operation","O(n) per getMin","O(n) per pop"], answer: 0 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why doesn't a single min variable work?", options: ["It does","After popping the current min you can't recover the previous one","Duplicates break it"], answer: 1, explain: "The stack needs the history of minimums, which is what storing a pair per entry gives you." },
+      { q: "How do you save memory?", options: ["A second stack that pushes only when x <= current min and pops when the popped value equals its top","Drop the min tracking","Use a heap"], answer: 0, explain: "Use <= so duplicate minimums are tracked. Otherwise popping one copy loses the min." }
+    ],
     explain: "Each stack entry stores its value together with the minimum of everything at or below it. The current minimum is then just the top entry's second number, and popping an entry brings back the previous minimum for free. Every operation is O(1) at the cost of O(n) extra memory. Tracking one `min` variable breaks after you pop the minimum, and rescanning the stack is O(n) per call."
   },
   {
@@ -2540,6 +2806,15 @@ const LESSONS = [
   }
   return h.length ? h[0] : 0;
 }`,
+    plan: {
+      approach: { options: ["Sort the stones every round","Max-heap: pop the two heaviest, push back the difference","Sort once and work from the end","Sum everything and check parity"], answer: 1 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 3 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 }
+    },
+    followups: [
+      { q: "Why isn't sorting once enough?", options: ["It is","The leftover stone can land anywhere in the order, so you'd have to re-insert it","Sorting is too slow even once"], answer: 1, explain: "Re-inserting into a sorted array is O(n) per round, O(n²) overall." },
+      { q: "JavaScript has no built-in heap. What do you tell the interviewer?", options: ["Use Array.sort each time","Use a Set","Write a small binary heap, or name a library and explain push and pop in O(log n)"], answer: 2, explain: "Interviewers usually accept 'assume a heap' if you can state its operations and costs." }
+    ],
     explain: "Each round removes the two largest and may insert one new value, which is exactly what a max heap does in O(log n). The whole process is O(n log n). Re-sorting the list every round is O(n log n) per round, which is hopeless for 100,000 stones, and sorting numbers without a comparator compares them as text, so 10 would count as smaller than 2."
   },
   {
@@ -2574,6 +2849,15 @@ const LESSONS = [
   }
   return copies;
 }`,
+    plan: {
+      approach: { options: ["Simulate each push and add the current size whenever the array is full","Return n","Return n²","Return log2(n)"], answer: 0 },
+      time: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 2 },
+      space: { options: ["O(1)","O(log n)","O(n)","O(n log n)","O(n²)"], answer: 0 }
+    },
+    followups: [
+      { q: "With doubling, how do total copies grow?", options: ["O(n): 1 + 2 + 4 + ... stays under 2n, so a push is O(1) amortized","O(n log n)","O(n²)"], answer: 0, explain: "Geometric growth makes the copies a geometric series." },
+      { q: "Growing by a fixed s instead?", options: ["O(n)","O(n log n)","O(n² / s): a resize every s pushes, each copying more"], answer: 2, explain: "That's why real dynamic arrays grow by a factor, not a constant." }
+    ],
     explain: "With doubling, copies happen at sizes 1, 2, 4, 8 and so on, which add up to less than 2n over n pushes, so each push costs O(1) amortized even though one push occasionally costs O(n). Growing by a fixed step copies about n squared divided by 2s elements in total, which is O(n squared) and why real arrays grow by a factor. Amortized means averaged over the whole sequence, not the cost of every single call."
   },
   {
@@ -2625,6 +2909,15 @@ const LESSONS = [
   }
   return out;
 }`,
+    plan: {
+      approach: { options: ["An array of words, scanned for each query","A tree with one edge per character and an end flag on each word's last node","A Set of words plus a Set of every prefix","Sort the words and binary search"], answer: 1 },
+      time: { options: ["O(n) per query","O(L) per operation for a word of length L","O(log n) per query","O(L²) per query"], answer: 1 },
+      space: { options: ["O(1)","O(total characters inserted)","O(26^L)","O(n²)"], answer: 1 }
+    },
+    followups: [
+      { q: "Why do you need the end flag?", options: ["Speed","'app' and 'apple' share nodes; without it, search('app') can't tell whether 'app' itself was inserted","Deletes"], answer: 1, explain: "Reaching a node only proves some word passes through it." },
+      { q: "Autocomplete: return every word with a given prefix?", options: ["Walk to the prefix node, then DFS below it collecting every end flag","Scan all the words","Binary search"], answer: 0, explain: "The prefix walk is O(L), then the work is proportional to the matches." }
+    ],
     explain: "Each character is one step down the tree, so insert, search and prefix search all cost O(length of the word), no matter how many words are stored. The end flag is what separates a word from a prefix: after inserting 'apple', the path for 'app' exists but only 'apple' is flagged. Scanning a list of all words for each query is O(words times length) per query."
   }
 ];
