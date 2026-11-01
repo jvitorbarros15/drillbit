@@ -1,5 +1,3 @@
-// Web push sender. Without VAPID keys it only logs, like the email sender without a Resend key.
-// Returns { gone: true } when the push service says the subscription no longer exists, so it can be deleted.
 function createSendPush({ publicKey, privateKey, subject, webpush = null } = {}) {
   let lib = null;
   return async (sub, payload) => {
