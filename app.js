@@ -211,7 +211,9 @@
     const doneToday = S.lastDone === today();
     const left = CORE.schedule(S, ctx, today()).daysLeft;
     const co = S.profile.company;
-    const date = left !== null && left > 0
+    const date = left === 0
+      ? `<button class="chip" data-act="interview" title="Interview details">${co ? esc(co.name) + " " : ""}interview today</button>`
+      : left !== null && left > 0
       ? `<button class="chip" data-act="interview" title="Interview details"><b>${left}</b> day${left > 1 ? "s" : ""} to ${co ? esc(co.name) + " " : ""}interview</button>`
       : `<button class="chip" data-act="interview">Set interview</button>`;
     $("#chips").innerHTML = `
@@ -477,6 +479,7 @@
 
   function phaseLine() {
     const sch = CORE.schedule(S, sctx, today());
+    if (sch.daysLeft === 0) return "Interview day. Keep it light: one review, then rest.";
     if (sch.phase === "final-review") return "Final review week.";
     if (sch.phase === "past") return "Interview day has passed. Set a new date or keep practicing.";
     const p = PAT_BY_ID[sch.current];
@@ -517,7 +520,7 @@
     return `
       <section class="panel">
         <div class="panel-head"><h3>Readiness map</h3><span class="muted small">${PATTERNS.length} patterns <button class="link" data-act="share">Share</button></span></div>
-        <p class="muted small">Ready means two different problems solved, then a problem solved alone with no hints on a later day. It reflects your practice here, not a hiring prediction.</p>
+        <p class="muted small">Ready means a problem solved first, then a new coding problem solved alone (right plan, no hints, first run) on a later day. It reflects your practice here, not a hiring prediction.</p>
         <div class="rd-grid">${cells}</div>
       </section>`;
   }
@@ -573,7 +576,7 @@
     const line = extra.join("  ·  ");
     g.fillStyle = "#e9ecf2"; g.font = `26px ${sans}`; g.fillText(line.charAt(0).toUpperCase() + line.slice(1), 64, 510);
     g.fillStyle = "#8d94a8"; g.font = `20px ${sans}`;
-    g.fillText("Proven: two problems solved, then a new one solved alone with no hints on a later day.", 64, 566);
+    g.fillText("Proven: a problem solved first, then a new one solved alone with no hints on a later day.", 64, 566);
     g.fillText("A record of practice, not a hiring prediction.", 64, 594);
     return c;
   }
@@ -1840,9 +1843,10 @@
   // ---------- boot ----------
   window.addEventListener("hashchange", route);
   const STASH = "drillbit.stash.";
+  let accessCheckedAt = 0;
   AUTH.attach({
     get: () => S, set: s => { S = s; persist(); }, notify: toast, ctx: () => ctx,
-    beforeMerge: () => refreshAccess().catch(() => false),
+    beforeMerge: () => refreshAccess().then(ok => { accessCheckedAt = Date.now(); return ok; }, () => false),
     stash: s => { try { localStorage.setItem(STASH + s.owner, JSON.stringify(s)); } catch (err) { /* ignore */ } },
     unstash: id => {
       try { const raw = localStorage.getItem(STASH + id); localStorage.removeItem(STASH + id); return raw ? CORE.migrate(JSON.parse(raw)) : null; }
@@ -1859,7 +1863,7 @@
       else reminder = null;
     }
     if (what !== "synced") return;
-    await refreshAccess();
+    if (Date.now() - accessCheckedAt > 5000) await refreshAccess();
     const back = takeReturn();
     if (back) go(back);
     else if (!run) route();

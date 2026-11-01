@@ -61,7 +61,7 @@ test("shareSummary only reports evidence from the readiness map", () => {
   const sum = C.shareSummary(s, ctx, T, 13);
   assert.deepStrictEqual(sum.ready.map(r => r.id), ["pb", "pc"], "newest evidence first");
   assert.deepStrictEqual([sum.total, sum.practicing, sum.streak, sum.due.length], [13, 1, 4, 0]);
-  assert.strictEqual(C.shareText(sum), "My Drillbit readiness, 2026-03-10: 2 of 13 patterns proven. Proven (two problems solved, then a new one solved alone on a later day): PB, PC. Practicing 1 more. 4 day streak.");
+  assert.strictEqual(C.shareText(sum), "My Drillbit readiness, 2026-03-10: 2 of 13 patterns proven. Proven (a problem solved first, then a new one solved alone on a later day): PB, PC. Practicing 1 more. 4 day streak.");
   const old = prove(st(), "pb", ["qb1", "cb1"], "2026-01-01");
   const s2 = C.shareSummary(old, ctx, T);
   assert.deepStrictEqual([s2.ready.length, s2.due, s2.total], [0, ["PB"], 3], "stale evidence is due, and total defaults to patterns with content");
@@ -303,7 +303,7 @@ test("schedule phases", () => {
   assert.deepStrictEqual(at("2026-03-18"), ["learn", 8]);
   assert.deepStrictEqual(at("2026-03-17"), ["final-review", 7]);
   assert.deepStrictEqual(at("2026-03-11"), ["final-review", 1]);
-  assert.deepStrictEqual(at(T), ["past", 0]);
+  assert.deepStrictEqual(at(T), ["final-review", 0], "the interview day itself isn't past");
   assert.deepStrictEqual(at("2026-03-01"), ["past", -9]);
 });
 

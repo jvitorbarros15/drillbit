@@ -134,10 +134,7 @@
   const evKey = e => `${e.ts || ""}|${e.id || ""}`;
   const byEvKey = (a, b) => (evKey(a) < evKey(b) ? -1 : evKey(a) > evKey(b) ? 1 : 0);
 
-  // An attempt. failedRuns counts test runs with failing tests before the final one (syntax and runtime
-  // errors are errorRuns and don't count against independence). revealed means the solution was shown.
-  // id and ts identify the attempt so sync can replay it on another device exactly once.
-  // planned is false when the lesson asked for a plan first and it was skipped or wrong, null when it had none.
+  // failedRuns excludes syntax and runtime errors (errorRuns), which don't count against independence
   function recordAttempt(state, ctx, today, a) {
     const { lessonId, correct, tag, hinted, reviewOf, diagnostic } = a;
     const failedRuns = a.failedRuns || 0, errorRuns = a.errorRuns || 0, revealed = !!a.revealed;
@@ -260,8 +257,7 @@
     return (c && (ctx.companies || []).find(x => x.id === c.id)) || null;
   }
 
-  // Patterns to put first after weak spots: the company's published focus plus what came up in the latest debrief.
-  // Patterns the user found hard in that debrief rank above the rest.
+  // after weak spots: patterns found hard in the latest debrief, then what came up and the company's focus
   function focusOf(state, ctx) {
     const comp = companyOf(state, ctx);
     const d = latestDebrief(state);
@@ -291,7 +287,7 @@
   function schedule(state, ctx, today) {
     const date = state.profile && state.profile.interviewDate;
     const daysLeft = date ? diffDays(date, today) : null;
-    const phase = daysLeft === null ? "no-date" : daysLeft <= 0 ? "past" : daysLeft <= 7 ? "final-review" : "learn";
+    const phase = daysLeft === null ? "no-date" : daysLeft < 0 ? "past" : daysLeft <= 7 ? "final-review" : "learn";
     const open = readiness(state, ctx, today).filter(r => r.hasContent && r.status !== "ready");
     const res = (state.diagnostic && state.diagnostic.results) || {};
     const weak = r => res[r.id] && res[r.id].correct < res[r.id].total;
@@ -451,9 +447,7 @@
     return out.slice(-EVENT_CAP);
   }
 
-  // Remote is the base. Every local attempt the remote hasn't seen is replayed on top of it, so work done
-  // on two devices on the same day keeps every attempt. Replays are skipped below the remote's oldest kept
-  // event when its log is full, since those may have been trimmed rather than missing.
+  // below a full remote log's oldest event, a local event may have been trimmed there rather than missing
   function replayMerge(l, r, ctx) {
     const base = clone(r);
     const have = new Set(base.events.map(e => e.id).filter(Boolean));
@@ -511,8 +505,6 @@
     return { upsert, remove };
   }
 
-  // A mock interview: n coding problems from different patterns, unseen ones first, interview-sized (L2 to L4) before
-  // the rest, least recently seen breaking ties. Returns fewer when there aren't enough patterns.
   const MOCK_MINUTES = 45;
   function pickMock(state, ctx, rng, n = 2) {
     const last = l => (state.items[l.id] && state.items[l.id].last) || "";
@@ -530,8 +522,7 @@
     return out;
   }
 
-  // What a shared progress card may say: only evidence the readiness map already shows, nothing estimated.
-  // total is how many patterns have practice content in the full bank (a free build only holds some of them).
+  // total comes from the full bank, since a free build only holds some of the patterns
   function shareSummary(state, ctx, today, total) {
     const rows = readiness(state, ctx, today).filter(r => r.hasContent);
     const ready = rows.filter(r => r.status === "ready").sort((a, b) => (a.check.at < b.check.at ? 1 : -1)).map(r => ({ id: r.id, name: r.name, at: r.check.at, kind: r.check.kind }));
@@ -548,7 +539,7 @@
 
   function shareText(sum) {
     const lines = [`My Drillbit readiness, ${sum.date}: ${sum.ready.length} of ${sum.total} patterns proven.`];
-    if (sum.ready.length) lines.push(`Proven (two problems solved, then a new one solved alone on a later day): ${sum.ready.map(r => r.name).join(", ")}.`);
+    if (sum.ready.length) lines.push(`Proven (a problem solved first, then a new one solved alone on a later day): ${sum.ready.map(r => r.name).join(", ")}.`);
     if (sum.due.length) lines.push(`Due for a recheck: ${sum.due.join(", ")}.`);
     if (sum.practicing) lines.push(`Practicing ${sum.practicing} more.`);
     if (sum.streak) lines.push(`${sum.streak} day streak.`);
