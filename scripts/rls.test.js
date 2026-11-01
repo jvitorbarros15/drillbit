@@ -246,6 +246,20 @@ test("revoking a pass pulls the next stacked pass forward, and access_until repo
   await assert.rejects(db.query(`select public.access_until('${A}')`), /permission denied/);
 });
 
+test("a refund processed before its grant leaves the late grant revoked", async () => {
+  const F = "ffffffff-ffff-ffff-ffff-ffffffffffff";
+  await db.exec("reset role");
+  await db.exec(`insert into auth.users (id, email) values ('${F}', 'f@x.test')`);
+  await asService();
+  assert.strictEqual((await rows("select public.revoke_entitlement('pi_f1') as n"))[0].n, 0, "nothing to revoke yet");
+  await grant(F, "cs_f1", "pi_f1");
+  assert.strictEqual((await rows(`select public.has_access('${F}') as ok`))[0].ok, false);
+  await grant(F, "cs_f2", "pi_f2");
+  assert.strictEqual((await rows(`select public.has_access('${F}') as ok`))[0].ok, true, "an unrelated purchase still works");
+  await as(A);
+  assert.strictEqual((await rows("select * from public.revoked_payments")).length, 0, "RLS with no policies hides the table from users");
+});
+
 test("grant and revoke are not executable by authenticated or anon", async () => {
   for (const [uid, role] of [[A, "authenticated"], [null, "anon"]]) {
     await as(uid, role);
