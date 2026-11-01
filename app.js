@@ -484,7 +484,7 @@
   }
 
   const kindLabel = e => (e.independent ? "Independent check" : KIND[e.kind]);
-  const entryTitle = e => (e.kind === "concept" ? PAT_BY_ID[e.patternId].name : BY_ID[e.lessonId].title);
+  const entryTitle = e => (e.kind === "concept" ? PAT_BY_ID[e.patternId].name : BY_ID[e.lessonId] ? BY_ID[e.lessonId].title : "Sprint Pass problem");
   function sessionRows(entries, done) {
     return `<ol class="sess-list">${entries.map((e, i) => {
       const r = done[i];
@@ -658,7 +658,7 @@
   function getSession() {
     const t = today();
     const day = S.days[t] || (S.days[t] = { answered: 0, correct: 0 });
-    if (!day.session) { day.session = { entries: CORE.composeSession(S, sctx, t), done: [] }; save(); }
+    if (!day.session) { day.session = { entries: CORE.composeSession(S, sctx, t), done: [], gated: gated() }; save(); }
     return day.session;
   }
 
@@ -832,6 +832,8 @@
     }
     access = a;
     indexContent();
+    const day = S.days[today()];
+    if (day && day.session && day.session.gated && !day.session.done.length) { delete day.session; save(); }
     renderChips();
     return true;
   }
@@ -1734,7 +1736,7 @@
       case "pass": go("#pass"); break;
       case "save-reminder": {
         const next = { enabled: $("#rem-on").checked, hour: Number($("#rem-hour").value), timezone: browserZone() };
-        AUTH.saveReminder(next).then(r => { if (r) { reminder = next; toast("Reminder saved."); } else toast("Couldn't save the reminder. Try again."); });
+        AUTH.saveReminder(next).then(r => { if (r) { reminder = Object.assign({}, reminder, next); toast("Reminder saved."); } else toast("Couldn't save the reminder. Try again."); });
         break;
       }
       case "buy":
@@ -1840,6 +1842,7 @@
   const STASH = "drillbit.stash.";
   AUTH.attach({
     get: () => S, set: s => { S = s; persist(); }, notify: toast, ctx: () => ctx,
+    beforeMerge: () => refreshAccess().catch(() => false),
     stash: s => { try { localStorage.setItem(STASH + s.owner, JSON.stringify(s)); } catch (err) { /* ignore */ } },
     unstash: id => {
       try { const raw = localStorage.getItem(STASH + id); localStorage.removeItem(STASH + id); return raw ? CORE.migrate(JSON.parse(raw)) : null; }

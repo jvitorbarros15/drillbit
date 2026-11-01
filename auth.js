@@ -87,6 +87,7 @@
       const C = window.CORE, uid = user.id;
       const local = hooks.get();
       const remote = await pullRaw();
+      if (hooks.beforeMerge) await hooks.beforeMerge();
       const foreign = !!local.owner && local.owner !== uid;
       if (foreign && hooks.stash) hooks.stash(local);
       const own = foreign ? (hooks.unstash ? hooks.unstash(uid) : null) : local;
@@ -195,7 +196,8 @@
     disablePush: () => guard(async () => {
       if (!user) return null;
       await dropDevice();
-      check(await client.from("profiles").update({ push_enabled: false }).eq("id", user.id));
+      const left = check(await client.from("push_subscriptions").select("endpoint").eq("user_id", user.id));
+      if (!(left.data && left.data.length)) check(await client.from("profiles").update({ push_enabled: false }).eq("id", user.id));
       return { ok: true };
     }),
     saveReminder: ({ enabled, hour, timezone }) => guard(async () => {

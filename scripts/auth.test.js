@@ -9,7 +9,7 @@ const src = fs.readFileSync(path.join(__dirname, "..", "auth.js"), "utf8");
 const json = x => JSON.parse(JSON.stringify(x));
 const flush = async () => { for (let i = 0; i < 8; i++) await new Promise(r => setImmediate(r)); };
 
-function setup({ config, remote = null, failUpdate = false, fetchStatus = 200, token = "tok", owner = null, stashed = {}, ctx: lessonCtx, push = null } = {}) {
+function setup({ config, remote = null, failUpdate = false, fetchStatus = 200, token = "tok", owner = null, stashed = {}, ctx: lessonCtx, push = null, beforeMerge = null, subsLeft = null } = {}) {
   const calls = [];
   let authCb = null;
   const builder = (table, op, args) => {
@@ -20,7 +20,7 @@ function setup({ config, remote = null, failUpdate = false, fetchStatus = 200, t
       eq: (...a) => { call.filters.push(["eq", ...a]); return b; },
       in: (...a) => { call.filters.push(["in", ...a]); return b; },
       maybeSingle: () => Promise.resolve({ data: { progress: remote }, error: null }),
-      then: (res, rej) => (failUpdate && op === "update" ? Promise.reject(new Error("net")) : Promise.resolve({ data: null, error: null })).then(res, rej)
+      then: (res, rej) => (failUpdate && op === "update" ? Promise.reject(new Error("net")) : Promise.resolve({ data: op === "select" && table === "push_subscriptions" ? subsLeft : null, error: null })).then(res, rej)
     };
     return b;
   };
@@ -70,7 +70,8 @@ function setup({ config, remote = null, failUpdate = false, fetchStatus = 200, t
   win.AUTH.attach({
     get: () => state, set: s => { sets.push(s); state = s; }, notify: m => notes.push(m),
     stash: s => stashes.push(json(s)), unstash: id => { const v = stashed[id] || null; delete stashed[id]; return v; },
-    ...(lessonCtx ? { ctx: () => lessonCtx } : {})
+    ...(lessonCtx ? { ctx: () => lessonCtx } : {}),
+    ...(beforeMerge ? { beforeMerge } : {})
   });
   const signIn = async () => {
     await win.AUTH.ready;
@@ -350,4 +351,24 @@ test("sign-out sends a save still waiting on the delay, and the timer never fire
   await flush();
   assert.strictEqual(ops(t.calls, "update").length, before + 1, "the delayed save didn't run again with no user");
   assert.ok(ops(t.calls, "update").indexOf(ups[ups.length - 1]) >= 0 && t.calls.indexOf(ups[ups.length - 1]) < t.calls.findIndex(c => c.op === "signOut"), "saved before the session ended");
+});
+
+test("sync waits for beforeMerge (paid content) before merging", async () => {
+  const order = [];
+  const t = setup({ config: CFG, remote: { v: 3, streak: 9, lastDone: "2026-03-11" }, beforeMerge: async () => { order.push("beforeMerge"); } });
+  const set = t.sets.length;
+  await t.signIn();
+  assert.deepStrictEqual(order, ["beforeMerge"]);
+  assert.ok(t.sets.length > set, "merged after the hook ran");
+});
+
+test("disablePush keeps push on for the account while another device is subscribed", async () => {
+  const t = setup({ config: PUSH_CFG, push: fakePush("granted", "https://push.test/laptop"), subsLeft: [{ endpoint: "https://push.test/phone" }] });
+  await t.signIn();
+  assert.deepStrictEqual(json(await t.AUTH.disablePush()), { ok: true });
+  assert.ok(!ops(t.calls, "update").some(c => c.table === "profiles" && c.args[0].push_enabled === false), "phone keeps getting reminders");
+  const u = setup({ config: PUSH_CFG, push: fakePush("granted", "https://push.test/only"), subsLeft: [] });
+  await u.signIn();
+  await u.AUTH.disablePush();
+  assert.ok(ops(u.calls, "update").some(c => c.table === "profiles" && c.args[0].push_enabled === false), "last device off turns push off");
 });
