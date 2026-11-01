@@ -3,11 +3,15 @@ const CORE = require("../../core.js");
 const weekday = d => CORE.parse(d).toLocaleDateString("en-US", { weekday: "long" });
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
+// cached so CORE's per-ctx index is built once per process, not once per user
+const content = {};
 function contentFor(paid) {
+  const key = paid ? "paid" : "free";
+  if (content[key]) return content[key];
   const full = { lessons: require("../../data.js"), patterns: require("../../patterns.js"), guides: require("../../guides.js"), companies: require("../../companies.js") };
-  if (paid) return full;
+  if (paid) return (content.paid = full);
   const { split, FREE_PATTERNS } = require("./split");
-  return { ...full, lessons: split(full).freeLessons.filter(l => FREE_PATTERNS.includes(CORE.patternOf(l, full))) };
+  return (content.free = { ...full, lessons: split(full).freeLessons.filter(l => FREE_PATTERNS.includes(CORE.patternOf(l, full))) });
 }
 
 const COUNTDOWN = [14, 7, 3, 1];      // days before the interview that always get a message
