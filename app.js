@@ -259,7 +259,7 @@
       </section>`;
   };
   const pushControl = r => !AUTH.pushSupported()
-    ? `<span class="muted small">Browser notifications aren't available in this browser. On iPhone, add Drillbit to your home screen first.</span>`
+    ? `<span class="muted small">Browser notifications aren't available in this browser. On iPhone, add Algostead to your home screen first.</span>`
     : r.push
     ? `<span class="muted">Browser notifications are on for this device.</span><button class="btn ghost" data-act="push-off">Turn off</button>`
     : `<span class="muted">Get the same reminder as a browser notification on this device.</span><button class="btn ghost" data-act="push-on">Turn on notifications</button>`;
@@ -556,7 +556,7 @@
     const sans = "system-ui, -apple-system, Segoe UI, sans-serif", mono = "ui-monospace, Menlo, monospace";
     g.fillStyle = "#0a0b0f"; g.fillRect(0, 0, W, H);
     g.fillStyle = "#b6ff3b"; g.fillRect(0, 0, W, 6);
-    g.font = `600 26px ${mono}`; g.fillText("DRILLBIT", 64, 80);
+    g.font = `600 26px ${mono}`; g.fillText("ALGOSTEAD", 64, 80);
     g.fillStyle = "#8d94a8"; g.font = `24px ${sans}`; g.textAlign = "right";
     g.fillText(CORE.parse(sum.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }), W - 64, 80);
     g.textAlign = "left"; g.fillStyle = "#e9ecf2"; g.font = `700 64px ${sans}`;
@@ -824,6 +824,7 @@
   async function refreshAccess() {
     if (!META || !AUTH.enabled) return false;
     const a = await AUTH.access();
+    if (a && !a.active && access && access.active) { access = a; indexContent(); renderChips(); }
     if (!a || !a.active) return false;
     if (gated()) {
       const c = await AUTH.content();
@@ -1058,7 +1059,7 @@
   }
 
   function startMock() {
-    const ids = CORE.pickMock(S, ctx, Math.random);
+    const ids = CORE.pickMock(S, sctx, Math.random);
     if (ids.length < 2) { toast("A mock needs coding problems from two patterns."); return; }
     clearHash();
     run = {
@@ -1084,7 +1085,9 @@
   }
 
   function startLevel(track, level) {
-    const pool = LESSONS.filter(l => l.track === track && l.level === level);
+    // the free repair's sample problems stay fresh for the repair
+    const samples = new Set(gated() && META.samples ? Object.values(META.samples).flat() : []);
+    const pool = LESSONS.filter(l => l.track === track && l.level === level && !samples.has(l.id));
     const fresh = shuffle(pool.filter(l => !cleared(l.id)));
     const old = shuffle(pool.filter(l => cleared(l.id)));
     clearHash();
@@ -1267,7 +1270,8 @@
     ta.addEventListener("input", () => {
       syncGutter();
       clearTimeout(draftTimer);
-      draftTimer = setTimeout(() => { S.drafts[item.id] = { code: ta.value, ts: new Date().toISOString() }; save(); }, 300);
+      // drafts stay local until the next real save, so typing doesn't hit the server
+      draftTimer = setTimeout(() => { S.drafts[item.id] = { code: ta.value, ts: new Date().toISOString() }; persist(); }, 300);
     });
     ta.addEventListener("keydown", e => {
       if (ta.readOnly) return;
@@ -1666,7 +1670,7 @@
     const blob = new Blob([JSON.stringify(S, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `drillbit-progress-${today()}.json`;
+    a.download = `algostead-progress-${today()}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
@@ -1680,7 +1684,7 @@
           const data = JSON.parse(txt);
           if (!data || ![1, 2, 3].includes(data.v) || !data.items) throw new Error();
           S = CORE.migrate(data); save(); reconcileStreak(); go(""); toast("Progress imported.");
-        } catch (e) { toast("That file doesn't look like a Drillbit export."); }
+        } catch (e) { toast("That file doesn't look like a Algostead export."); }
       });
     };
     input.click();
@@ -1702,7 +1706,7 @@
       case "share-download": {
         const a = document.createElement("a");
         a.href = $("#share-img").src;
-        a.download = `drillbit-readiness-${today()}.png`;
+        a.download = `algostead-readiness-${today()}.png`;
         a.click();
         ANALYTICS.track("share_card", { how: "image", proven: shareSum().ready.length });
         break;
