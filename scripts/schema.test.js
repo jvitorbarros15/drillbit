@@ -89,3 +89,8 @@ test("viz specs", () => {
   no({ view: "dp-table", watch: ["dp"], arrayArg: 1.5 });
   bad(validateLesson, { ...mcq, viz: { view: "stack", watch: ["a"] } });
 });
+
+test("every coding problem has a plan and follow-ups", () => {
+  const missing = require("../data.js").filter(l => l.type === "code" && !(l.plan && l.followups)).map(l => l.id);
+  assert.deepStrictEqual(missing, []);
+});
