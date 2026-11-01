@@ -148,7 +148,7 @@ select.viz-input { width: auto; }
 
 @media (max-width: 600px) {
   .nav-left { gap: 10px; }
-  .logo-mark { display: none; }
+  .logo-wordmark { display: none; }
   .nav-btn { padding: 4px 8px; }
   .est-grid { grid-template-columns: 1fr 1fr; }
   .ring-wrap { grid-template-columns: 1fr; }

@@ -3,7 +3,7 @@ const { readRaw } = require("./_lib/http");
 const page = (res, code, title, body) => {
   res.statusCode = code;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="robots" content="noindex" /><title>${title} | Drillbit</title><link rel="stylesheet" href="/styles.css" /></head><body><main class="legal"><h1>${title}</h1>${body}</main></body></html>`);
+  res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="robots" content="noindex" /><title>${title} | Algostead</title><link rel="stylesheet" href="/styles.css" /></head><body><main class="legal"><h1>${title}</h1>${body}</main></body></html>`);
 };
 
 const create = ({ db, unsubscribe }) => async (req, res) => {

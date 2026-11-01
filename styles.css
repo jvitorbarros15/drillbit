@@ -62,8 +62,8 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.02em; line-height: 1.15; }
   border-bottom: 1px solid var(--line);
 }
 .logo { color: var(--text); text-decoration: none; font-weight: 700; font-size: 1.15rem; letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
-.logo span:last-child { color: var(--algo); }
-.logo-mark { font-family: var(--mono); color: var(--algo); font-size: 0.9rem; letter-spacing: -0.15em; border: 1px solid var(--line2); border-radius: 8px; padding: 2px 8px 2px 6px; }
+.logo { flex-shrink: 0; white-space: nowrap; }
+.logo-mark { display: block; width: 36px; height: 28px; flex-shrink: 0; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
 .chip b { color: var(--text); font-family: var(--mono); }

@@ -47,7 +47,7 @@ function buildReminder(progress, ctx, localDate, allowedPatterns = null) {
   if (kind === "debrief") {
     return {
       kind,
-      subject: `Drillbit: how did ${company ? "the " + company : "your"} interview go?`,
+      subject: `Algostead: how did ${company ? "the " + company : "your"} interview go?`,
       lines: [`How did ${company ? "the " + company : "your"} interview go? Two minutes while it's fresh: tell us what came up and what felt shaky, and your plan puts those first.`, "If there's a next round, add its date and the countdown starts again."]
     };
   }
@@ -62,16 +62,16 @@ function buildReminder(progress, ctx, localDate, allowedPatterns = null) {
     if (p) lines.push(`Next step: ${p.name}`);
   }
   if (state.streak > 0 && kind !== "winback") lines.push(`Streak: ${state.streak} day${state.streak === 1 ? "" : "s"}`);
-  const subject = kind === "countdown" ? `Drillbit: ${company ? interview : interview.replace(/^Interview/, "interview")}`
-    : kind === "winback" ? "Drillbit: pick up where you left off"
-    : tags.length ? `Drillbit: ${tags.length} to review today` : "Your Drillbit session for today";
+  const subject = kind === "countdown" ? `Algostead: ${company ? interview : interview.replace(/^Interview/, "interview")}`
+    : kind === "winback" ? "Algostead: pick up where you left off"
+    : tags.length ? `Algostead: ${tags.length} to review today` : "Your Algostead session for today";
   return { kind, subject, lines };
 }
 
 function compose({ lines }, appUrl, unsubUrl) {
-  const text = [...lines, "", `Open Drillbit: ${appUrl}`, "", `Unsubscribe: ${unsubUrl}`].join("\n");
+  const text = [...lines, "", `Open Algostead: ${appUrl}`, "", `Unsubscribe: ${unsubUrl}`].join("\n");
   const html = lines.map(l => `<p>${esc(l)}</p>`).join("") +
-    `<p><a href="${esc(appUrl)}">Open Drillbit</a></p><p><small><a href="${esc(unsubUrl)}">Unsubscribe</a></small></p>`;
+    `<p><a href="${esc(appUrl)}">Open Algostead</a></p><p><small><a href="${esc(unsubUrl)}">Unsubscribe</a></small></p>`;
   return { text, html };
 }
 
